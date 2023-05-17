@@ -27,21 +27,50 @@ func main() {
 		return
 	}
 
+	// make temp dir
+	d, err := os.MkdirTemp("", "hlsmaker*")
+	if err != nil {
+		log.Printf("failed to make temp dir: %s", err)
+		os.Exit(1)
+		return
+	}
+	log.Printf("Using temporary dir: %s", d)
+	defer os.RemoveAll(d)
+
+	/*
+		err = encodeVideo(d) // will generate {d}/master.m3u8
+		if err != nil {
+			log.Printf("encoding failed: %s", err)
+			os.Exit(1)
+			return
+		} */
+
+	hlsb, err := newHlsBuilder("test.hls")
+	if err != nil {
+		log.Printf("failed to create output file: %s", err)
+		os.Exit(1)
+		return
+	}
+	err = hlsb.build("test/master.m3u8")
+	if err != nil {
+		log.Printf("failed to build hls: %s", err)
+		os.Exit(1)
+		return
+	}
+}
+
+func encodeVideo(d string) error {
 	// perform ffprobe
 	var info *ffprobeInfo
 	err := runutil.RunJson(&info, "/pkg/main/media-video.ffmpeg.core/bin/ffprobe", "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
 	if err != nil {
-		log.Printf("ffprobe failed: %s", err)
-		os.Exit(1)
-		return
+		return fmt.Errorf("ffprobe failed: %w", err)
 	}
 
 	video := info.video()
 	audio := info.audio()
 	if video == nil || audio == nil {
-		log.Printf("video or audio track missing")
-		os.Exit(1)
-		return
+		return fmt.Errorf("video or audio track missing")
 	}
 
 	log.Printf("input: video stream format %s %dx%d, audio format %s %d Hz", video.CodecName, video.Width, video.Height, audio.CodecName, audio.SampleRate)
@@ -55,15 +84,6 @@ func main() {
 	}
 
 	log.Printf("will be generating the following sizes: %v", variants)
-
-	// make temp dir
-	d, err := os.MkdirTemp("", "hlsmaker*")
-	if err != nil {
-		log.Printf("failed to make temp dir: %s", err)
-		return
-	}
-	log.Printf("Using temporary dir: %s", d)
-	defer os.RemoveAll(d)
 
 	// prepare the command line
 	args := []string{
@@ -147,10 +167,9 @@ func main() {
 
 	err = c.Run()
 	if err != nil {
-		log.Printf("failed to run ffmpeg: %s", err)
-		os.Exit(1)
-		return
+		return fmt.Errorf("failed to run ffmpeg: %w", err)
 	}
 
 	// ok!
+	return nil
 }
