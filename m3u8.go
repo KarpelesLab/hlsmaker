@@ -2,10 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -88,6 +92,12 @@ func (m *m3u8) parse(in io.Reader) error {
 	}
 }
 
+func (m *m3u8) Bytes() []byte {
+	buf := &bytes.Buffer{}
+	m.WriteTo(buf)
+	return buf.Bytes()
+}
+
 func (m *m3u8) WriteTo(w io.Writer) (n int64, err error) {
 	var n2 int
 	var n3 int64
@@ -127,4 +137,25 @@ func (f *m3u8file) WriteTo(w io.Writer) (n int64, err error) {
 	n2, err = w.Write([]byte(f.filename + "\n"))
 	n += int64(n2)
 	return
+}
+
+func (f *m3u8file) offsetFile(offt int64) error {
+	// #EXT-X-BYTERANGE:2794808@101316020
+	for n, h := range f.headers {
+		if strings.HasPrefix(h, "#EXT-X-BYTERANGE:") {
+			// length@position
+			// we only want to modify the position
+			atpos := strings.IndexByte(h, '@')
+			if atpos == -1 {
+				return errors.New("malformed #EXT-X-BYTERANGE:")
+			}
+			curpos, err := strconv.ParseInt(h[atpos+1:], 10, 64)
+			if err != nil {
+				return err
+			}
+			f.headers[n] = h[atpos+1:] + strconv.FormatInt(curpos+offt, 10)
+			return nil
+		}
+	}
+	return fs.ErrNotExist
 }

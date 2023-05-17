@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -21,7 +23,9 @@ import (
 // total size of header is 16 + 16 + (nstream * 16)
 
 type hlsBuilder struct {
-	f *os.File
+	f     *os.File
+	dir   string
+	files map[string]int64
 }
 
 func newHlsBuilder(out string) (*hlsBuilder, error) {
@@ -30,11 +34,11 @@ func newHlsBuilder(out string) (*hlsBuilder, error) {
 		return nil, err
 	}
 
-	return &hlsBuilder{f: file}, nil
+	return &hlsBuilder{f: file, files: make(map[string]int64)}, nil
 }
 
 func (hls *hlsBuilder) build(in string) error {
-	dir := filepath.Dir(in)
+	hls.dir = filepath.Dir(in)
 	master, err := m3u8Parse(in)
 	if err != nil {
 		return err
@@ -43,12 +47,13 @@ func (hls *hlsBuilder) build(in string) error {
 
 	var playlists []*m3u8
 
-	for _, f := range master.files {
-		pl, err := m3u8Parse(filepath.Join(dir, f.filename))
+	for n, f := range master.files {
+		pl, err := m3u8Parse(filepath.Join(hls.dir, f.filename))
 		if err != nil {
 			return err
 		}
 		playlists = append(playlists, pl)
+		f.filename = fmt.Sprintf("%d.m3u8", n)
 	}
 
 	// clear output file
@@ -56,5 +61,95 @@ func (hls *hlsBuilder) build(in string) error {
 	hls.f.Truncate(0)
 	hls.f.Seek(pos, io.SeekStart)
 
+	for _, pl := range playlists {
+		for _, f := range pl.files {
+			pos, err := hls.getFile(f.filename)
+			if err != nil {
+				return err
+			}
+			err = f.offsetFile(pos)
+			if err != nil {
+				return err
+			}
+			f.filename = "data"
+		}
+	}
+
+	pos, err = hls.f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+
+	hls.writeInt32(4, uint32(len(playlists)))
+
+	var buf []byte
+	var ln int
+
+	for n, pl := range playlists {
+		buf = pl.Bytes()
+		ln, err = hls.f.Write(buf)
+		if err != nil {
+			return err
+		}
+		hls.writeInt64(32+(16*n), uint64(pos))
+		hls.writeInt32(32+(16*n)+12, uint32(ln))
+		pos += int64(ln)
+	}
+
+	// write master at the end
+	buf = master.Bytes()
+	ln, err = hls.f.Write(buf)
+	if err != nil {
+		return err
+	}
+	// write info
+	hls.writeInt64(16, uint64(pos))
+	hls.writeInt32(28, uint32(ln))
+	pos += int64(ln)
+
+	// we're all done, now write the header
+	hls.f.WriteAt([]byte{'H', 'L', 'S', 1}, 0)
+
 	return nil
+}
+
+func (hls *hlsBuilder) getFile(fn string) (int64, error) {
+	pos, ok := hls.files[fn]
+	if ok {
+		return pos, nil
+	}
+	log.Printf("hls: appending %s", fn)
+	full := filepath.Join(hls.dir, fn)
+	read, err := os.Open(full)
+	if err != nil {
+		return 0, err
+	}
+	defer read.Close()
+
+	pos, err = hls.f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, err
+	}
+
+	// copy data
+	_, err = io.Copy(hls.f, read)
+	if err != nil {
+		return 0, err
+	}
+	hls.files[fn] = pos
+	return pos, nil
+}
+
+func (hls *hlsBuilder) writeInt32(pos int, v uint32) error {
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], v)
+	_, err := hls.f.WriteAt(buf[:], int64(pos))
+	return err
+}
+
+func (hls *hlsBuilder) writeInt64(pos int, v uint64) error {
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], v)
+	_, err := hls.f.WriteAt(buf[:], int64(pos))
+	return err
 }
