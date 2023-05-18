@@ -110,6 +110,7 @@ func encodeVideo(d string) error {
 				"-map", fmt.Sprintf("[v%d]", n),
 				"-c:v:"+ns, "h264_nvenc",
 				"-profile:v:"+ns, "high",
+				"-pix_fmt:v:"+ns, "yuv420p",
 				"-preset", "p5",
 				"-b:v:"+ns, br,
 				"-maxrate:v:"+ns, br,
