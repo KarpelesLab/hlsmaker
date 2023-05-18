@@ -43,7 +43,6 @@ func (hls *hlsBuilder) build(in string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("master = %+v", master)
 
 	var playlists []*m3u8
 
