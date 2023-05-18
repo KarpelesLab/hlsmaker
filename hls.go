@@ -134,7 +134,7 @@ func (hls *hlsBuilder) getFile(fn string) (int64, int64, error) {
 	if ok {
 		return nfo.pos, nfo.ln, nil
 	}
-	log.Printf("hls: appending %s", fn)
+	//log.Printf("hls: appending %s", fn)
 	full := filepath.Join(hls.dir, fn)
 	read, err := os.Open(full)
 	if err != nil {
