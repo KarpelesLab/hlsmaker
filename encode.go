@@ -20,6 +20,8 @@ var (
 	maxStreams   = flag.Int("max_streams", 16, "set the maximum number of video streams to include")
 	softwareMode = flag.Bool("software", false, "enable software encoding")
 	encKey       = flag.String("key", "", "encryption key (16 bytes, hexadecimal)")
+	singleFile   = flag.Bool("single_file", false, "enable single file mode")
+	verboseMode  = flag.Bool("verbose", false, "show more info during encoding")
 )
 
 func encodeVideo(d string) error {
@@ -52,8 +54,10 @@ func encodeVideo(d string) error {
 	log.Printf("will be generating the following sizes: %v", variants)
 
 	// prepare the command line
-	args := []string{
-		"-i", *inputFile, "-hide_banner", "-loglevel", "warning",
+	args := []string{"-i", *inputFile, "-hide_banner"}
+
+	if !*verboseMode {
+		args = append(args, "-loglevel", "warning")
 	}
 
 	// prepare filter_complex
@@ -125,15 +129,24 @@ func encodeVideo(d string) error {
 		varStreamMap = append(varStreamMap, fmt.Sprintf("v:%d,a:%d", n, n))
 	}
 
+	hlsFlags := []string{"independent_segments"}
+	if *singleFile {
+		hlsFlags = append(hlsFlags, "single_file")
+	}
+
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", "5",
 		"-hls_playlist_type", "vod",
-		"-hls_flags", "independent_segments+single_file",
+		"-hls_flags", strings.Join(hlsFlags, "+"),
 		"-hls_segment_type", "mpegts",
-		"-hls_segment_filename", "stream_%v.ts",
 		"-master_pl_name", "master.m3u8",
 	)
+	if *singleFile {
+		args = append(args, "-hls_segment_filename", "stream_%v.ts")
+	} else {
+		args = append(args, "-hls_segment_filename", "stream_%v_%d.ts")
+	}
 
 	if encKey != nil && *encKey != "" {
 		key, err := hex.DecodeString(*encKey)
@@ -159,7 +172,9 @@ func encodeVideo(d string) error {
 		"stream_%v.m3u8",
 	)
 
-	log.Printf("ffmpeg arguments: %v", args)
+	if *verboseMode {
+		log.Printf("ffmpeg arguments: %v", args)
+	}
 	c := exec.Command("/pkg/main/media-video.ffmpeg.core/bin/ffmpeg", args...)
 	c.Dir = d // set to run in temp dir
 	c.Stdout = os.Stdout

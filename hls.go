@@ -22,10 +22,15 @@ import (
 //
 // total size of header is 16 + 16 + (nstream * 16)
 
+type fileInfo struct {
+	pos int64
+	ln  int64
+}
+
 type hlsBuilder struct {
 	f     *os.File
 	dir   string
-	files map[string]int64
+	files map[string]*fileInfo
 }
 
 func newHlsBuilder(out string) (*hlsBuilder, error) {
@@ -34,7 +39,7 @@ func newHlsBuilder(out string) (*hlsBuilder, error) {
 		return nil, err
 	}
 
-	return &hlsBuilder{f: file, files: make(map[string]int64)}, nil
+	return &hlsBuilder{f: file, files: make(map[string]*fileInfo)}, nil
 }
 
 func (hls *hlsBuilder) build(in string) error {
@@ -45,6 +50,7 @@ func (hls *hlsBuilder) build(in string) error {
 	}
 
 	var playlists []*m3u8
+	uniqueFiles := make(map[string]int)
 
 	for n, f := range master.files {
 		pl, err := m3u8Parse(filepath.Join(hls.dir, f.filename))
@@ -53,24 +59,35 @@ func (hls *hlsBuilder) build(in string) error {
 		}
 		playlists = append(playlists, pl)
 		f.filename = fmt.Sprintf("%d.m3u8", n)
+		for _, sub := range pl.files {
+			uniqueFiles[sub.filename] = 0
+		}
 	}
+	log.Printf("identified %d unique media files", len(uniqueFiles))
 
 	// clear output file
-	pos := int64(16 + 16 + len(master.files)*16)
+	pos := int64(16 + 16 + (len(master.files)+len(uniqueFiles))*16)
 	hls.f.Truncate(0)
 	hls.f.Seek(pos, io.SeekStart)
 
+	cnt := len(master.files) // 4
+
 	for _, pl := range playlists {
 		for _, f := range pl.files {
-			pos, err := hls.getFile(f.filename)
+			n := uniqueFiles[f.filename]
+			pos, ln, err := hls.getFile(f.filename)
 			if err != nil {
 				return err
 			}
-			err = f.offsetFile(pos)
-			if err != nil {
-				return err
+			if n == 0 {
+				n = cnt
+				uniqueFiles[f.filename] = n
+				cnt += 1
+				hls.writeInt64(32+(16*n), uint64(pos))
+				hls.writeInt32(32+(16*n)+8, uint32(1))
+				hls.writeInt32(32+(16*n)+12, uint32(ln))
 			}
-			f.filename = "data"
+			f.filename = fmt.Sprintf("%d.ts", n)
 		}
 	}
 
@@ -112,31 +129,31 @@ func (hls *hlsBuilder) build(in string) error {
 	return nil
 }
 
-func (hls *hlsBuilder) getFile(fn string) (int64, error) {
-	pos, ok := hls.files[fn]
+func (hls *hlsBuilder) getFile(fn string) (int64, int64, error) {
+	nfo, ok := hls.files[fn]
 	if ok {
-		return pos, nil
+		return nfo.pos, nfo.ln, nil
 	}
 	log.Printf("hls: appending %s", fn)
 	full := filepath.Join(hls.dir, fn)
 	read, err := os.Open(full)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer read.Close()
 
-	pos, err = hls.f.Seek(0, io.SeekCurrent)
+	pos, err := hls.f.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	// copy data
-	_, err = io.Copy(hls.f, read)
+	ln, err := io.Copy(hls.f, read)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	hls.files[fn] = pos
-	return pos, nil
+	hls.files[fn] = &fileInfo{pos: pos, ln: ln}
+	return pos, ln, nil
 }
 
 func (hls *hlsBuilder) writeInt32(pos int, v uint32) error {
