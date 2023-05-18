@@ -1,11 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -15,6 +19,7 @@ import (
 var (
 	maxStreams   = flag.Int("max_streams", 16, "set the maximum number of video streams to include")
 	softwareMode = flag.Bool("software", false, "enable software encoding")
+	encKey       = flag.String("key", "", "encryption key (16 bytes, hexadecimal)")
 )
 
 func encodeVideo(d string) error {
@@ -123,14 +128,33 @@ func encodeVideo(d string) error {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", "5",
-		// -hls_enc 1
-		// -hls_enc_key "42424242424242424242424242424242"
-		// -hls_enc_key_url 'key.ts'
 		"-hls_playlist_type", "vod",
 		"-hls_flags", "independent_segments+single_file",
 		"-hls_segment_type", "mpegts",
 		"-hls_segment_filename", "stream_%v.ts",
 		"-master_pl_name", "master.m3u8",
+	)
+
+	if encKey != nil && *encKey != "" {
+		key, err := hex.DecodeString(*encKey)
+		if err != nil {
+			return fmt.Errorf("could not decode encryption key: %w", err)
+		}
+		iv := make([]byte, 16)
+		_, err = io.ReadFull(rand.Reader, iv)
+		if err != nil {
+			return fmt.Errorf("could not read random data for IV: %w", err)
+		}
+		// write key to disk
+		os.WriteFile(filepath.Join(d, "master.key"), key, 0600)
+		// generate key info file
+		os.WriteFile(filepath.Join(d, "keyinfo.txt"), []byte("master.key\n"+filepath.Join(d, "master.key")+"\n"+hex.EncodeToString(iv)+"\n"), 0600)
+		args = append(args,
+			"-hls_key_info_file", filepath.Join(d, "keyinfo.txt"),
+		)
+	}
+
+	args = append(args,
 		"-var_stream_map", strings.Join(varStreamMap, " "),
 		"stream_%v.m3u8",
 	)

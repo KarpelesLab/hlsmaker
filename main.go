@@ -8,9 +8,8 @@ import (
 )
 
 var (
-	inputFile  = flag.String("in", "", "input file")
+	inputFile  = flag.String("in", "", "input file (required)")
 	outputFile = flag.String("out", "", "output file")
-	encKey     = flag.String("key", "", "encryption key (16 bytes, hexadecimal)")
 )
 
 func main() {
