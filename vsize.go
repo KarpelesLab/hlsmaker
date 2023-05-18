@@ -22,7 +22,7 @@ func (v *vsize) smaller() *vsize {
 		return v.reverse().smaller().reverse()
 	}
 
-	steps := []int{1080, 720, 480, 360, 180, 120}
+	steps := []int{2160, 1440, 1080, 720, 480, 360, 240}
 
 	for _, nh := range steps {
 		if v.h <= nh {
