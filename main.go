@@ -50,6 +50,8 @@ func main() {
 		os.Exit(1)
 		return
 	}
+	defer hlsb.Close()
+
 	err = hlsb.build(filepath.Join(d, "master.m3u8"))
 	if err != nil {
 		log.Printf("failed to build hls: %s", err)

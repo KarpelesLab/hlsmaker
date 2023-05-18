@@ -96,8 +96,6 @@ func (hls *hlsBuilder) build(in string) error {
 		return err
 	}
 
-	hls.writeInt32(8, uint32(len(playlists)))
-
 	var buf []byte
 	var ln int
 
@@ -108,6 +106,7 @@ func (hls *hlsBuilder) build(in string) error {
 			return err
 		}
 		hls.writeInt64(32+(16*n), uint64(pos))
+		// flags == 0
 		hls.writeInt32(32+(16*n)+12, uint32(ln))
 		pos += int64(ln)
 	}
@@ -119,11 +118,12 @@ func (hls *hlsBuilder) build(in string) error {
 		return err
 	}
 	// write info
+	hls.writeInt32(8, uint32(cnt))
 	hls.writeInt64(16, uint64(pos))
 	hls.writeInt32(28, uint32(ln))
 	pos += int64(ln)
 
-	// we're all done, now write the header
+	// we're all done, now write ID in the header (we do that as final step on purpose)
 	hls.f.WriteAt([]byte{'H', 'L', 'S', 1}, 0)
 
 	return nil
@@ -168,4 +168,8 @@ func (hls *hlsBuilder) writeInt64(pos int, v uint64) error {
 	binary.BigEndian.PutUint64(buf[:], v)
 	_, err := hls.f.WriteAt(buf[:], int64(pos))
 	return err
+}
+
+func (hls *hlsBuilder) Close() error {
+	return hls.f.Close()
 }
