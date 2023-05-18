@@ -80,7 +80,7 @@ func (hls *hlsBuilder) build(in string) error {
 		return err
 	}
 
-	hls.writeInt32(4, uint32(len(playlists)))
+	hls.writeInt32(8, uint32(len(playlists)))
 
 	var buf []byte
 	var ln int

@@ -153,7 +153,7 @@ func (f *m3u8file) offsetFile(offt int64) error {
 			if err != nil {
 				return err
 			}
-			f.headers[n] = h[atpos+1:] + strconv.FormatInt(curpos+offt, 10)
+			f.headers[n] = h[:atpos+1] + strconv.FormatInt(curpos+offt, 10)
 			return nil
 		}
 	}
