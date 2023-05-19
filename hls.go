@@ -119,6 +119,12 @@ func (hls *hlsBuilder) build() error {
 		pos += int64(ln)
 	}
 
+	// fix master
+	err = hls.fixMaster(master)
+	if err != nil {
+		return fmt.Errorf("failed to fix master: %w", err)
+	}
+
 	// write master at the end
 	buf = master.Bytes()
 	ln, err = hls.f.Write(buf)

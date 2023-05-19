@@ -93,16 +93,18 @@ func (hls *hlsBuilder) encodeVideo() error {
 	var varStreamMap []string
 	for n, s := range variants {
 		ns := strconv.Itoa(n)
+		ts := hls.newStream(video)
+		tsid := ts.String()
 		bitrateInt := s.bitrate(rate, 0.1)
 		br := strconv.FormatUint(bitrateInt, 10) // we use 0.1 bit per pixel for now
 		if *softwareMode {
 			args = append(args,
-				"-map", fmt.Sprintf("[v%d]", n),
-				"-c:v:"+ns, "libx264",
+				"-map", "[v"+ns+"]",
+				"-c:"+tsid, "libx264",
 				"-x264-params", "nal-hrd=cbr:force-cfr=1",
-				"-b:v:"+ns, br,
-				"-maxrate:v:"+ns, br,
-				"-minrate:v:"+ns, br,
+				"-b:"+tsid, br,
+				"-maxrate:"+tsid, br,
+				"-minrate:"+tsid, br,
 				"-bufsize", strconv.FormatUint(bitrateInt*2, 10),
 				"-preset", "slow",
 				"-g", "48",
@@ -112,27 +114,29 @@ func (hls *hlsBuilder) encodeVideo() error {
 		} else {
 			args = append(args,
 				"-map", fmt.Sprintf("[v%d]", n),
-				"-c:v:"+ns, "h264_nvenc",
-				"-profile:v:"+ns, "high",
-				"-pix_fmt:v:"+ns, "yuv420p",
-				"-preset", "p5",
-				"-b:v:"+ns, br,
-				"-maxrate:v:"+ns, br,
+				"-c:"+tsid, "h264_nvenc",
+				"-profile:"+tsid, "high",
+				"-pix_fmt:"+tsid, "yuv420p",
+				"-preset:"+tsid, "p5",
+				"-b:"+tsid, br,
+				"-maxrate:"+tsid, br,
 			)
 		}
-		varStreamMap = append(varStreamMap, "v:"+ns)
+		varStreamMap = append(varStreamMap, tsid)
 	}
 
 	// audio
-	for n := range audios {
+	for n, audio := range audios {
 		ns := strconv.Itoa(n)
+		ts := hls.newStream(audio)
+		tsid := ts.String()
 		args = append(args,
 			"-map", "a:"+ns,
-			"-c:a:"+ns, "aac",
-			"-b:a:"+ns, "96k",
-			"-ac:a:"+ns, "2",
+			"-c:"+tsid, "aac",
+			"-b:"+tsid, "96k",
+			"-ac:"+tsid, "2",
 		)
-		varStreamMap = append(varStreamMap, "a:"+ns)
+		varStreamMap = append(varStreamMap, tsid)
 	}
 
 	hlsFlags := []string{"independent_segments"}
