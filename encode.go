@@ -87,6 +87,8 @@ func encodeVideo(d string) error {
 	} else if rate < 10 {
 		rate = 10
 	}
+
+	var varStreamMap []string
 	for n, s := range variants {
 		ns := strconv.Itoa(n)
 		bitrateInt := s.bitrate(rate, 0.1)
@@ -116,19 +118,23 @@ func encodeVideo(d string) error {
 				"-maxrate:v:"+ns, br,
 			)
 		}
-		// audio
-		args = append(args,
-			"-map", "a:0",
-			"-c:a:"+ns, "aac",
-			"-b:a:"+ns, "96k", // TODO variable audio bitrate
-			"-ac:a:"+ns, "2", // do we need to make it stereo?
-		)
+		varStreamMap = append(varStreamMap, "v:"+ns)
 	}
-
-	var varStreamMap []string
-	for n := range variants {
-		varStreamMap = append(varStreamMap, fmt.Sprintf("v:%d,a:%d", n, n))
-	}
+	// audio
+	args = append(args,
+		"-map", "a:0",
+		"-c:a:0", "aac",
+		"-b:a:0", "96k",
+		"-ac:a:0", "2",
+	)
+	args = append(args,
+		"-map", "a:0",
+		"-c:a:1", "aac",
+		"-b:a:1", "48k",
+		"-ac:a:1", "2",
+	)
+	varStreamMap = append(varStreamMap, "a:0")
+	varStreamMap = append(varStreamMap, "a:1")
 
 	hlsFlags := []string{"independent_segments"}
 	if *singleFile {
