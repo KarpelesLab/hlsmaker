@@ -2,6 +2,12 @@ package main
 
 import "fmt"
 
+const (
+	AudioStream byte = 'a'
+	VideoStream byte = 'v'
+	SubsStream  byte = 's'
+)
+
 type hlsStream struct {
 	id  int            // stream number
 	lid int            // stream number per type

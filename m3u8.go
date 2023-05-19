@@ -98,6 +98,17 @@ func (m *m3u8) Bytes() []byte {
 	return buf.Bytes()
 }
 
+func (m *m3u8) takeFile(fn string) (f *m3u8file, err error) {
+	for n, f := range m.files {
+		if f.filename == fn {
+			// remove it from files
+			m.files = append(m.files[:n], m.files[n+1:]...)
+			return f, nil
+		}
+	}
+	return nil, fs.ErrNotExist
+}
+
 func (m *m3u8) WriteTo(w io.Writer) (n int64, err error) {
 	var n2 int
 	var n3 int64

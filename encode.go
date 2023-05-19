@@ -146,7 +146,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 
 	args = append(args,
 		"-f", "hls",
-		"-hls_time", "5",
+		"-hls_time", "10",
 		"-hls_playlist_type", "vod",
 		"-hls_flags", strings.Join(hlsFlags, "+"),
 		"-hls_segment_type", "mpegts",

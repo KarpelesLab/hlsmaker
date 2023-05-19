@@ -131,6 +131,7 @@ func (hls *hlsBuilder) build() error {
 	if err != nil {
 		return err
 	}
+
 	// write info
 	hls.writeInt32(8, uint32(cnt))
 	hls.writeInt64(16, uint64(pos))
