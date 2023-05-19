@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
 )
 
 var (
@@ -22,23 +21,6 @@ func main() {
 		return
 	}
 
-	// make temp dir
-	d, err := os.MkdirTemp("", "hlsmaker*")
-	if err != nil {
-		log.Printf("failed to make temp dir: %s", err)
-		os.Exit(1)
-		return
-	}
-	log.Printf("Using temporary dir: %s", d)
-	defer os.RemoveAll(d)
-
-	err = encodeVideo(d) // will generate {d}/master.m3u8
-	if err != nil {
-		log.Printf("encoding failed: %s", err)
-		os.Exit(1)
-		return
-	}
-
 	out := *outputFile
 	if out == "" {
 		out = *inputFile + ".hls"
@@ -52,7 +34,14 @@ func main() {
 	}
 	defer hlsb.Close()
 
-	err = hlsb.build(filepath.Join(d, "master.m3u8"))
+	err = hlsb.encodeVideo() // will generate {hls.dir}/master.m3u8
+	if err != nil {
+		log.Printf("encoding failed: %s", err)
+		os.Exit(1)
+		return
+	}
+
+	err = hlsb.build()
 	if err != nil {
 		log.Printf("failed to build hls: %s", err)
 		os.Exit(1)

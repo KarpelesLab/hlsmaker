@@ -28,6 +28,16 @@ func (info *ffprobeInfo) stream(typ string) *ffprobeStream {
 	return nil
 }
 
+func (info *ffprobeInfo) streams(typ string) []*ffprobeStream {
+	var res []*ffprobeStream
+	for _, s := range info.Streams {
+		if s.CodecType == typ {
+			res = append(res, s)
+		}
+	}
+	return res
+}
+
 type ffprobeStream struct {
 	Index          int         `json:"index"` // stream index
 	CodecName      string      `json:"codec_name"`

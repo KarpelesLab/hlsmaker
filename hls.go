@@ -29,6 +29,7 @@ type fileInfo struct {
 
 type hlsBuilder struct {
 	f     *os.File
+	info  *ffprobeInfo // source file info
 	dir   string
 	files map[string]*fileInfo
 }
@@ -39,12 +40,18 @@ func newHlsBuilder(out string) (*hlsBuilder, error) {
 		return nil, err
 	}
 
-	return &hlsBuilder{f: file, files: make(map[string]*fileInfo)}, nil
+	// make temp dir
+	d, err := os.MkdirTemp("", "hlsmaker*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to make temp dir: %w", err)
+	}
+	log.Printf("Using temporary dir: %s", d)
+
+	return &hlsBuilder{f: file, files: make(map[string]*fileInfo), dir: d}, nil
 }
 
-func (hls *hlsBuilder) build(in string) error {
-	hls.dir = filepath.Dir(in)
-	master, err := m3u8Parse(in)
+func (hls *hlsBuilder) build() error {
+	master, err := m3u8Parse(filepath.Join(hls.dir, "master.m3u8"))
 	if err != nil {
 		return err
 	}
@@ -171,5 +178,6 @@ func (hls *hlsBuilder) writeInt64(pos int, v uint64) error {
 }
 
 func (hls *hlsBuilder) Close() error {
+	os.RemoveAll(hls.dir)
 	return hls.f.Close()
 }

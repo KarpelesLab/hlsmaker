@@ -24,21 +24,23 @@ var (
 	verboseMode  = flag.Bool("verbose", false, "show more info during encoding")
 )
 
-func encodeVideo(d string) error {
+func (hls *hlsBuilder) encodeVideo() error {
 	// perform ffprobe
-	var info *ffprobeInfo
-	err := runutil.RunJson(&info, "/pkg/main/media-video.ffmpeg.core/bin/ffprobe", "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
+	err := runutil.RunJson(&hls.info, "/pkg/main/media-video.ffmpeg.core/bin/ffprobe", "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
 	if err != nil {
 		return fmt.Errorf("ffprobe failed: %w", err)
 	}
 
-	video := info.video()
-	audio := info.audio()
-	if video == nil || audio == nil {
+	video := hls.info.video()
+	audios := hls.info.streams("audio")
+	if video == nil {
 		return fmt.Errorf("video or audio track missing")
 	}
 
-	log.Printf("input: video stream format %s %dx%d, audio format %s %d Hz", video.CodecName, video.Width, video.Height, audio.CodecName, audio.SampleRate)
+	log.Printf("input: video stream format %s %dx%d", video.CodecName, video.Width, video.Height)
+	for _, audio := range audios {
+		log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
+	}
 
 	siz := &vsize{w: video.Width, h: video.Height}
 
@@ -120,21 +122,18 @@ func encodeVideo(d string) error {
 		}
 		varStreamMap = append(varStreamMap, "v:"+ns)
 	}
+
 	// audio
-	args = append(args,
-		"-map", "a:0",
-		"-c:a:0", "aac",
-		"-b:a:0", "96k",
-		"-ac:a:0", "2",
-	)
-	args = append(args,
-		"-map", "a:0",
-		"-c:a:1", "aac",
-		"-b:a:1", "48k",
-		"-ac:a:1", "2",
-	)
-	varStreamMap = append(varStreamMap, "a:0")
-	varStreamMap = append(varStreamMap, "a:1")
+	for n := range audios {
+		ns := strconv.Itoa(n)
+		args = append(args,
+			"-map", "a:"+ns,
+			"-c:a:"+ns, "aac",
+			"-b:a:"+ns, "96k",
+			"-ac:a:"+ns, "2",
+		)
+		varStreamMap = append(varStreamMap, "a:"+ns)
+	}
 
 	hlsFlags := []string{"independent_segments"}
 	if *singleFile {
@@ -166,11 +165,11 @@ func encodeVideo(d string) error {
 			return fmt.Errorf("could not read random data for IV: %w", err)
 		}
 		// write key to disk
-		os.WriteFile(filepath.Join(d, "master.key"), key, 0600)
+		os.WriteFile(filepath.Join(hls.dir, "master.key"), key, 0600)
 		// generate key info file
-		os.WriteFile(filepath.Join(d, "keyinfo.txt"), []byte("master.key\n"+filepath.Join(d, "master.key")+"\n"+hex.EncodeToString(iv)+"\n"), 0600)
+		os.WriteFile(filepath.Join(hls.dir, "keyinfo.txt"), []byte("master.key\n"+filepath.Join(hls.dir, "master.key")+"\n"+hex.EncodeToString(iv)+"\n"), 0600)
 		args = append(args,
-			"-hls_key_info_file", filepath.Join(d, "keyinfo.txt"),
+			"-hls_key_info_file", filepath.Join(hls.dir, "keyinfo.txt"),
 		)
 	}
 
@@ -183,7 +182,7 @@ func encodeVideo(d string) error {
 		log.Printf("ffmpeg arguments: %v", args)
 	}
 	c := exec.Command("/pkg/main/media-video.ffmpeg.core/bin/ffmpeg", args...)
-	c.Dir = d // set to run in temp dir
+	c.Dir = hls.dir // set to run in temp dir
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 
