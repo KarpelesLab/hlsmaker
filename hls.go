@@ -28,10 +28,11 @@ type fileInfo struct {
 }
 
 type hlsBuilder struct {
-	f     *os.File
-	info  *ffprobeInfo // source file info
-	dir   string
-	files map[string]*fileInfo
+	f       *os.File
+	info    *ffprobeInfo // source file info
+	dir     string
+	files   map[string]*fileInfo
+	streams []*hlsStream
 }
 
 func newHlsBuilder(out string) (*hlsBuilder, error) {
