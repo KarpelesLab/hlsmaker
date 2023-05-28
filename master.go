@@ -37,6 +37,7 @@ func (hls *hlsBuilder) fixMaster(master *m3u8) error {
 
 	first := true
 	hasAudio := false
+	hasSubs := false
 
 	for _, stream := range hls.streams {
 		if stream.typ == AudioStream {
@@ -55,7 +56,7 @@ func (hls *hlsBuilder) fixMaster(master *m3u8) error {
 				props = append(props, "NAME=\"Undefined audio track\"")
 			}
 			if lng, ok := stream.src.Tags["language"]; ok {
-				props = append(props, fmt.Sprintf("LANGUAGE=\"%s\"", lng))
+				props = append(props, fmt.Sprintf("LANGUAGE=\"%s\"", fixLanguage(lng)))
 			}
 			if first {
 				props = append(props, "DEFAULT=YES")
@@ -70,6 +71,37 @@ func (hls *hlsBuilder) fixMaster(master *m3u8) error {
 			master.headers = append(master.headers, final)
 			hasAudio = true
 		}
+		if stream.typ == SubsStream {
+			f, err := master.takeFile(fmt.Sprintf("%d.m3u8", stream.id))
+			if err != nil {
+				return fmt.Errorf("could not remove stream %d: %w", stream.id, err)
+			}
+			props := []string{
+				"TYPE=SUBTITLES",
+				"GROUP-ID=\"subs\"",
+			}
+			if nam, ok := stream.src.Tags["title"]; ok {
+				props = append(props, fmt.Sprintf("NAME=\"%s\"", nam))
+			} else {
+				props = append(props, "NAME=\"Unknown subtitles\"")
+			}
+			if lng, ok := stream.src.Tags["language"]; ok {
+				props = append(props, fmt.Sprintf("LANGUAGE=\"%s\"", fixLanguage(lng)))
+			}
+			if first {
+				props = append(props, "DEFAULT=YES")
+				first = false
+			} else {
+				props = append(props, "DEFAULT=NO")
+			}
+			props = append(props, "AUTOSELECT=YES")
+			props = append(props, "FORCED=NO")
+			props = append(props, fmt.Sprintf("URI=\"%s\"", f.filename))
+
+			final := "#EXT-X-MEDIA:" + strings.Join(props, ",")
+			master.headers = append(master.headers, final)
+			hasSubs = true
+		}
 	}
 
 	if hasAudio {
@@ -77,6 +109,23 @@ func (hls *hlsBuilder) fixMaster(master *m3u8) error {
 			f.headers[0] += ",AUDIO=\"audio\""
 		}
 	}
+	if hasSubs {
+		for _, f := range master.files {
+			f.headers[0] += ",SUBTITLES=\"subs\""
+		}
+	}
 
 	return nil
+}
+
+func fixLanguage(l string) string {
+	if len(l) == 3 {
+		switch l {
+		case "jpn":
+			return "ja"
+		default:
+			return l[:2]
+		}
+	}
+	return l
 }

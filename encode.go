@@ -26,13 +26,14 @@ var (
 
 func (hls *hlsBuilder) encodeVideo() error {
 	// perform ffprobe
-	err := runutil.RunJson(&hls.info, "/pkg/main/media-video.ffmpeg.core/bin/ffprobe", "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
+	err := runutil.RunJson(&hls.info, exe("ffprobe"), "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
 	if err != nil {
 		return fmt.Errorf("ffprobe failed: %w", err)
 	}
 
 	video := hls.info.video()
 	audios := hls.info.streams("audio")
+	subtitles := hls.info.streams("subtitle")
 	if video == nil {
 		return fmt.Errorf("video or audio track missing")
 	}
@@ -139,6 +140,18 @@ func (hls *hlsBuilder) encodeVideo() error {
 		varStreamMap = append(varStreamMap, tsid)
 	}
 
+	// subtitle
+	for n, subtitle := range subtitles {
+		ns := strconv.Itoa(n)
+		ts := hls.newStream(subtitle)
+		tsid := ts.String()
+		args = append(args,
+			"-map", "s:"+ns,
+			"-c:"+tsid, "webvtt",
+		)
+		varStreamMap = append(varStreamMap, tsid)
+	}
+
 	hlsFlags := []string{"independent_segments"}
 	if *singleFile {
 		hlsFlags = append(hlsFlags, "single_file")
@@ -185,7 +198,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 	if *verboseMode {
 		log.Printf("ffmpeg arguments: %v", args)
 	}
-	c := exec.Command("/pkg/main/media-video.ffmpeg.core/bin/ffmpeg", args...)
+	c := exec.Command(exe("ffmpeg"), args...)
 	c.Dir = hls.dir // set to run in temp dir
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
