@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 )
 
 // special hls format
@@ -19,7 +20,7 @@ import (
 // HLS<v>
 // <4 bytes flags>
 // <4 bytes number of streams>
-// <4 bytes unused>
+// <4 bytes timestamp>
 // for master and each stream: <8 bytes offset of playlist> <4 bytes flags> <4 bytes file length>
 //
 // total size of header is 16 + 16 + (nstream * 16)
@@ -150,6 +151,7 @@ func (hls *hlsBuilder) build() error {
 
 	// write info
 	hls.writeInt32(8, uint32(cnt))
+	hls.writeInt32(12, uint32(time.Now().Unix()))
 	hls.writeInt64(16, uint64(pos))
 	hls.writeInt32(28, uint32(ln))
 	pos += int64(ln)
