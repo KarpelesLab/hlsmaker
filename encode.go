@@ -212,10 +212,22 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		return fmt.Errorf("failed to run ffmpeg: %w", err)
 	}
 
+	if len(subtitles) == 0 {
+		// no subtitles, process ends here
+		return nil
+	}
+
+	// fetch StartPTS for stream_0_0.ts
+	s0, err := ffprobeFile(filepath.Join(hls.dir, "stream_0_0.ts"))
+	if err != nil {
+		return err
+	}
+	startTime := s0.video().StartTime
+
 	// extract subtitles one by one
 	for n, subtitle := range subtitles {
 		// prepare the command line
-		args = []string{"-i", input, "-hide_banner"}
+		args = []string{"-itsoffset", strconv.FormatFloat(startTime, 'f', -1, 64), "-i", input, "-hide_banner"}
 
 		if !*verboseMode {
 			args = append(args, "-loglevel", "warning")

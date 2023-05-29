@@ -4,11 +4,19 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/KarpelesLab/runutil"
 )
 
 type ffprobeInfo struct {
 	Streams []*ffprobeStream `json:"streams"`
 	Format  *ffprobeFormat   `json:"format"`
+}
+
+func ffprobeFile(f string) (*ffprobeInfo, error) {
+	var info *ffprobeInfo
+	err := runutil.RunJson(&info, exe("ffprobe"), "-print_format", "json", "-hide_banner", "-loglevel", "warning", "-show_format", "-show_streams", "-show_chapters", f)
+	return info, err
 }
 
 func (info *ffprobeInfo) video() *ffprobeStream {
@@ -54,6 +62,8 @@ type ffprobeStream struct {
 	FrameRate      ffFrameRate `json:"r_frame_rate"`
 	SampleRate     int         `json:"sample_rate,string"`
 	Duration       float64     `json:"duration,string"`
+	StartTime      float64     `json:"start_time,string"`
+	StartPTS       int         `json:"start_pts"`
 
 	Disposition *struct {
 		Default int `json:"default"`
