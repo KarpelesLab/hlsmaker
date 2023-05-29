@@ -24,9 +24,9 @@ var (
 	verboseMode  = flag.Bool("verbose", false, "show more info during encoding")
 )
 
-func (hls *hlsBuilder) encodeVideo() error {
+func (hls *hlsBuilder) encodeVideo(input string) error {
 	// perform ffprobe
-	err := runutil.RunJson(&hls.info, exe("ffprobe"), "-print_format", "json", "-hide_banner", "-loglevel", "quiet", "-show_format", "-show_streams", "-show_chapters", *inputFile)
+	err := runutil.RunJson(&hls.info, exe("ffprobe"), "-print_format", "json", "-hide_banner", "-loglevel", "warning", "-show_format", "-show_streams", "-show_chapters", input)
 	if err != nil {
 		return fmt.Errorf("ffprobe failed: %w", err)
 	}
@@ -35,12 +35,19 @@ func (hls *hlsBuilder) encodeVideo() error {
 	audios := hls.info.streams("audio")
 	subtitles := hls.info.streams("subtitle")
 	if video == nil {
-		return fmt.Errorf("video or audio track missing")
+		return fmt.Errorf("video track missing")
 	}
 
 	log.Printf("input: video stream format %s %dx%d", video.CodecName, video.Width, video.Height)
 	for _, audio := range audios {
 		log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
+	}
+	for _, subtitle := range subtitles {
+		lng, ok := subtitle.Tags["language"]
+		if !ok {
+			lng = "und"
+		}
+		log.Printf("subtitle: sub format %s language %s", subtitle.CodecName, lng)
 	}
 
 	siz := &vsize{w: video.Width, h: video.Height}
@@ -57,7 +64,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 	log.Printf("will be generating the following sizes: %v", variants)
 
 	// prepare the command line
-	args := []string{"-i", *inputFile, "-hide_banner"}
+	args := []string{"-i", input, "-hide_banner"}
 
 	if !*verboseMode {
 		args = append(args, "-loglevel", "warning")

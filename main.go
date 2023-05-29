@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var (
@@ -17,13 +18,26 @@ func main() {
 	// take input video file (as param to ffmpeg or ffprobe) and generate a video file
 	if inputFile == nil || *inputFile == "" {
 		log.Printf("Syntax: %s -in filename [-key key]", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+		return
+	}
+
+	inFile, err := filepath.Abs(*inputFile)
+	if err != nil {
+		log.Printf("Invalid input path: %s", err)
+		os.Exit(1)
+		return
+	}
+	if _, err = os.Stat(inFile); err != nil {
+		log.Printf("Input file could not be located: %s", err)
 		os.Exit(1)
 		return
 	}
 
 	out := *outputFile
 	if out == "" {
-		out = *inputFile + ".hls"
+		out = inFile + ".hls"
 	}
 
 	hlsb, err := newHlsBuilder(out)
@@ -34,7 +48,7 @@ func main() {
 	}
 	defer hlsb.Close()
 
-	err = hlsb.encodeVideo() // will generate {hls.dir}/master.m3u8
+	err = hlsb.encodeVideo(inFile) // will generate {hls.dir}/master.m3u8
 	if err != nil {
 		log.Printf("encoding failed: %s", err)
 		os.Exit(1)
