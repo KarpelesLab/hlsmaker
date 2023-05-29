@@ -76,6 +76,7 @@ func (hls *hlsBuilder) fixMaster(master *m3u8) error {
 			if err != nil {
 				return fmt.Errorf("could not remove stream %d: %w", stream.id, err)
 			}
+
 			props := []string{
 				"TYPE=SUBTITLES",
 				"GROUP-ID=\"subs\"",

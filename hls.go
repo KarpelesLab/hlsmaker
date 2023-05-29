@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -22,6 +24,10 @@ import (
 //
 // total size of header is 16 + 16 + (nstream * 16)
 
+var (
+	keepTemp = flag.Bool("keeptemp", false, "keep temporary files")
+)
+
 type fileInfo struct {
 	pos int64
 	ln  int64
@@ -34,6 +40,13 @@ type hlsBuilder struct {
 	files   map[string]*fileInfo
 	streams []*hlsStream
 }
+
+const (
+	FilePlaylist = iota
+	FileMpegTS
+	FileMP4
+	FileVTT
+)
 
 func newHlsBuilder(out string) (*hlsBuilder, error) {
 	file, err := os.Create(out)
@@ -92,10 +105,10 @@ func (hls *hlsBuilder) build() error {
 				uniqueFiles[f.filename] = n
 				cnt += 1
 				hls.writeInt64(32+(16*n), uint64(pos))
-				hls.writeInt32(32+(16*n)+8, uint32(1))
+				hls.writeInt32(32+(16*n)+8, hlsFlags(f))
 				hls.writeInt32(32+(16*n)+12, uint32(ln))
 			}
-			f.filename = fmt.Sprintf("%d.ts", n)
+			f.filename = fmt.Sprintf("%d.%s", n, path.Ext(f.filename))
 		}
 	}
 
@@ -131,6 +144,9 @@ func (hls *hlsBuilder) build() error {
 	if err != nil {
 		return err
 	}
+
+	// also write in temp dir just in case (ignore errors)
+	os.WriteFile(filepath.Join(hls.dir, "master_fixed.m3u8"), buf, 0644)
 
 	// write info
 	hls.writeInt32(8, uint32(cnt))
@@ -186,6 +202,24 @@ func (hls *hlsBuilder) writeInt64(pos int, v uint64) error {
 }
 
 func (hls *hlsBuilder) Close() error {
-	os.RemoveAll(hls.dir)
+	if !*keepTemp {
+		os.RemoveAll(hls.dir)
+	} else {
+		log.Printf("Keeping temporary directory for debug, please delete once done: %s", hls.dir)
+	}
 	return hls.f.Close()
+}
+
+func hlsFlags(f *m3u8file) uint32 {
+	switch path.Ext(f.filename) {
+	case "m3u8":
+		return FilePlaylist
+	case "ts":
+		return FileMpegTS
+	case "mp4":
+		return FileMP4
+	case "vtt":
+		return FileVTT
+	}
+	return 0
 }

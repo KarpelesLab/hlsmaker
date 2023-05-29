@@ -53,6 +53,7 @@ type ffprobeStream struct {
 	ClosedCaptions int         `json:"closed_captions"`
 	FrameRate      ffFrameRate `json:"r_frame_rate"`
 	SampleRate     int         `json:"sample_rate,string"`
+	Duration       float64     `json:"duration,string"`
 
 	Disposition *struct {
 		Default int `json:"default"`

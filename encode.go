@@ -40,14 +40,19 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 
 	log.Printf("input: video stream format %s %dx%d", video.CodecName, video.Width, video.Height)
 	for _, audio := range audios {
-		log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
+		lng, ok := audio.Tags["language"]
+		if ok {
+			log.Printf("input: audio format %s %d Hz, language %s", audio.CodecName, audio.SampleRate, lng)
+		} else {
+			log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
+		}
 	}
 	for _, subtitle := range subtitles {
 		lng, ok := subtitle.Tags["language"]
 		if !ok {
 			lng = "und"
 		}
-		log.Printf("subtitle: sub format %s language %s", subtitle.CodecName, lng)
+		log.Printf("input: subtitles format %s language %s", subtitle.CodecName, lng)
 	}
 
 	siz := &vsize{w: video.Width, h: video.Height}
@@ -147,18 +152,6 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		varStreamMap = append(varStreamMap, tsid)
 	}
 
-	// subtitle
-	for n, subtitle := range subtitles {
-		ns := strconv.Itoa(n)
-		ts := hls.newStream(subtitle)
-		tsid := ts.String()
-		args = append(args,
-			"-map", "s:"+ns,
-			"-c:"+tsid, "webvtt",
-		)
-		varStreamMap = append(varStreamMap, tsid)
-	}
-
 	hlsFlags := []string{"independent_segments"}
 	if *singleFile {
 		hlsFlags = append(hlsFlags, "single_file")
@@ -169,6 +162,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		"-hls_time", "10",
 		"-hls_playlist_type", "vod",
 		"-hls_flags", strings.Join(hlsFlags, "+"),
+		"-hls_allow_cache", "1",
 		"-hls_segment_type", "mpegts",
 		"-master_pl_name", "master.m3u8",
 	)
@@ -218,6 +212,79 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		return fmt.Errorf("failed to run ffmpeg: %w", err)
 	}
 
+	// extract subtitles one by one
+	for n, subtitle := range subtitles {
+		// prepare the command line
+		args = []string{"-i", input, "-hide_banner"}
+
+		if !*verboseMode {
+			args = append(args, "-loglevel", "warning")
+		}
+
+		ns := strconv.Itoa(n)
+		ts := hls.newStream(subtitle)
+		args = append(args,
+			"-map", "s:"+ns,
+			"-c:0", "webvtt",
+			"-f", "webvtt",
+			// output file
+			fmt.Sprintf("subs_%d.vtt", ts.id),
+		)
+		if *verboseMode {
+			log.Printf("ffmpeg arguments: %v", args)
+		}
+		c := exec.Command(exe("ffmpeg"), args...)
+		c.Dir = hls.dir // set to run in temp dir
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+
+		err = c.Run()
+		if err != nil {
+			return fmt.Errorf("failed to run ffmpeg for %s: %w", ts, err)
+		}
+
+		// generate stream file
+		hls.makeSubPlaylist(ts)
+	}
+
 	// ok!
 	return nil
+}
+
+func (hls *hlsBuilder) makeSubPlaylist(ts *hlsStream) error {
+	s := ts.src
+
+	res := []string{
+		"#EXTM3U",
+		"#EXT-X-VERSION:6",
+		"#EXT-X-ALLOW-CACHE:YES",
+		fmt.Sprintf("#EXT-X-TARGETDURATION:%.0f", s.Duration),
+		"#EXT-X-MEDIA-SEQUENCE:0",
+		"#EXT-X-PLAYLIST-TYPE:VOD",
+		fmt.Sprintf("#EXTINF:%.06f,", s.Duration),
+		fmt.Sprintf("subs_%d.vtt", ts.id),
+		"#EXT-X-ENDLIST",
+	}
+
+	// write file
+	fn := filepath.Join(hls.dir, fmt.Sprintf("%d.m3u8", ts.id))
+	err := os.WriteFile(fn, []byte(strings.Join(res, "\n")+"\n"), 0644)
+	if err != nil {
+		return err
+	}
+
+	// append to master file
+	f, err := os.OpenFile(filepath.Join(hls.dir, "master.m3u8"), os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	buf := []string{
+		"#EXT-X-STREAM-INF:BANDWIDTH=0,CODECS=\"webvtt\"",
+		fmt.Sprintf("%d.m3u8", ts.id),
+	}
+
+	_, err = f.Write([]byte(strings.Join(buf, "\n") + "\n"))
+	return err
 }
