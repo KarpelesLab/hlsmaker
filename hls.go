@@ -109,7 +109,7 @@ func (hls *hlsBuilder) build() error {
 				hls.writeInt32(32+(16*n)+8, hlsFlags(f))
 				hls.writeInt32(32+(16*n)+12, uint32(ln))
 			}
-			f.filename = fmt.Sprintf("%d.%s", n, path.Ext(f.filename))
+			f.filename = fmt.Sprintf("%d%s", n, path.Ext(f.filename))
 		}
 	}
 
@@ -214,14 +214,16 @@ func (hls *hlsBuilder) Close() error {
 
 func hlsFlags(f *m3u8file) uint32 {
 	switch path.Ext(f.filename) {
-	case "m3u8":
+	case ".m3u8":
 		return FilePlaylist
-	case "ts":
+	case ".ts":
 		return FileMpegTS
-	case "mp4":
+	case ".mp4":
 		return FileMP4
-	case "vtt":
+	case ".vtt":
 		return FileVTT
+	default:
+		panic(fmt.Sprintf("invalid filename %s", f.filename))
 	}
 	return 0
 }
