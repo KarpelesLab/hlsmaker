@@ -1,4 +1,4 @@
-# ffmaker
+# hlsmaker
 
 Simple tool to convert video files into HLS multi-resolution file using ffmpeg.
 
