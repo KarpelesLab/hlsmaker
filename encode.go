@@ -47,13 +47,22 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 			log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
 		}
 	}
+	var usableSubs []*ffprobeStream
 	for _, subtitle := range subtitles {
+		switch subtitle.CodecName {
+		case "dvd_subtitle":
+			// format is not usabe
+			// "Error initializing output stream 0:0 -- Subtitle encoding currently only possible from text to text or bitmap to bitmap"
+		default:
+			usableSubs = append(usableSubs, subtitle)
+		}
 		lng, ok := subtitle.Tags["language"]
 		if !ok {
 			lng = "und"
 		}
 		log.Printf("input: subtitles format %s language %s", subtitle.CodecName, lng)
 	}
+	subtitles = usableSubs
 
 	siz := &vsize{w: video.Width, h: video.Height}
 
