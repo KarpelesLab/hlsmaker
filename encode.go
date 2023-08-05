@@ -50,7 +50,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	var usableSubs []*ffprobeStream
 	for _, subtitle := range subtitles {
 		switch subtitle.CodecName {
-		case "dvd_subtitle":
+		case "dvd_subtitle", "hdmv_pgs_subtitle":
 			// format is not usabe
 			// "Error initializing output stream 0:0 -- Subtitle encoding currently only possible from text to text or bitmap to bitmap"
 		default:
