@@ -22,6 +22,7 @@ var (
 	encKey       = flag.String("key", "", "encryption key (16 bytes, hexadecimal)")
 	singleFile   = flag.Bool("single_file", false, "enable single file mode")
 	verboseMode  = flag.Bool("verbose", false, "show more info during encoding")
+	videoFilters = flag.String("filter_complex", "", "add extra video filters such as yadif in ffmpeg format")
 )
 
 func (hls *hlsBuilder) encodeVideo(input string) error {
@@ -85,7 +86,12 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	}
 
 	// prepare filter_complex
-	flt := fmt.Sprintf("[0:v]split=%d", len(variants))
+	var flt string
+	if videoFilters != nil && *videoFilters != "" {
+		flt = fmt.Sprintf("[v:0]%s,split=%d", *videoFilters, len(variants))
+	} else {
+		flt = fmt.Sprintf("[v:0]split=%d", len(variants))
+	}
 	for n := range variants {
 		if n == 0 {
 			flt += "[v0]"
