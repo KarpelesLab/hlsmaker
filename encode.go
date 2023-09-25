@@ -232,8 +232,8 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		return nil
 	}
 
-	// fetch StartPTS for stream_0_0.ts
-	s0, err := ffprobeFile(filepath.Join(hls.dir, "stream_0_0.mp4"))
+	// fetch StartPTS for init_0.mp4 or stream_0_0.ts
+	s0, err := ffprobeFile(filepath.Join(hls.dir, "init_0.mp4"))
 	if err != nil {
 		return err
 	}
