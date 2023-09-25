@@ -178,13 +178,13 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		"-hls_playlist_type", "vod",
 		"-hls_flags", strings.Join(hlsFlags, "+"),
 		"-hls_allow_cache", "1",
-		"-hls_segment_type", "mpegts",
+		"-hls_segment_type", "fmp4",
 		"-master_pl_name", "master.m3u8",
 	)
 	if *singleFile {
-		args = append(args, "-hls_segment_filename", "stream_%v.ts")
+		args = append(args, "-hls_segment_filename", "stream_%v.mp4")
 	} else {
-		args = append(args, "-hls_segment_filename", "stream_%v_%d.ts")
+		args = append(args, "-hls_segment_filename", "stream_%v_%d.mp4")
 	}
 
 	if encKey != nil && *encKey != "" {
@@ -233,7 +233,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	}
 
 	// fetch StartPTS for stream_0_0.ts
-	s0, err := ffprobeFile(filepath.Join(hls.dir, "stream_0_0.ts"))
+	s0, err := ffprobeFile(filepath.Join(hls.dir, "stream_0_0.mp4"))
 	if err != nil {
 		return err
 	}

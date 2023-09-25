@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -80,6 +81,15 @@ func (hls *hlsBuilder) build() error {
 			return err
 		}
 		playlists = append(playlists, pl)
+		for _, h := range pl.headers {
+			// check for #EXT-X-MAP:URI="init_0.mp4" header
+			if strings.HasPrefix(h, "#EXT-X-MAP:URI=") {
+				// extract filename
+				fn := strings.TrimPrefix(h, "#EXT-X-MAP:URI=")
+				fn = strings.Trim(fn, "\"") // trim quotes
+				uniqueFiles[fn] = 0
+			}
+		}
 		f.filename = fmt.Sprintf("%d.m3u8", n)
 		for _, sub := range pl.files {
 			uniqueFiles[sub.filename] = 0
@@ -95,6 +105,30 @@ func (hls *hlsBuilder) build() error {
 	cnt := len(master.files) // 4
 
 	for _, pl := range playlists {
+		for hn, h := range pl.headers {
+			// check for #EXT-X-MAP:URI="init_0.mp4" header
+			if strings.HasPrefix(h, "#EXT-X-MAP:URI=") {
+				// extract filename
+				fn := strings.TrimPrefix(h, "#EXT-X-MAP:URI=")
+				fn = strings.Trim(fn, "\"") // trim quotes
+				n := uniqueFiles[fn]
+				pos, ln, err := hls.getFile(fn)
+				if err != nil {
+					return err
+				}
+				if n == 0 {
+					n = cnt
+					uniqueFiles[fn] = n
+					cnt += 1
+					hls.writeInt64(32+(16*n), uint64(pos))
+					hls.writeInt32(32+(16*n)+8, hlsFlagsName(fn))
+					hls.writeInt32(32+(16*n)+12, uint32(ln))
+				}
+				// overwrite header
+				fn = fmt.Sprintf("%d%s", n, path.Ext(fn))
+				pl.headers[hn] = fmt.Sprintf("#EXT-X-MAP:URI=\"%s\"", fn)
+			}
+		}
 		for _, f := range pl.files {
 			n := uniqueFiles[f.filename]
 			pos, ln, err := hls.getFile(f.filename)
@@ -224,6 +258,23 @@ func hlsFlags(f *m3u8file) uint32 {
 		return FileVTT
 	default:
 		panic(fmt.Sprintf("invalid filename %s", f.filename))
+	}
+	return 0
+}
+
+func hlsFlagsName(fn string) uint32 {
+	switch path.Ext(fn) {
+	case ".m3u8":
+		return FilePlaylist
+	case ".ts":
+		return FileMpegTS
+	case ".mp4":
+		return FileMP4
+	case ".vtt":
+		return FileVTT
+	default:
+		panic(fmt.Sprintf("invalid filename %s", fn))
+
 	}
 	return 0
 }
