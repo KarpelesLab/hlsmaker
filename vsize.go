@@ -22,7 +22,7 @@ func (v *vsize) smaller() *vsize {
 		return v.reverse().smaller().reverse()
 	}
 
-	steps := []int{4320, 2160, 1440, 1080, 720, 480, 360, 240, 144}
+	steps := []int{4320, 2160, 1440, 1080, 720, 480, 360, 240} //, 144}
 
 	for _, nh := range steps {
 		if v.h <= nh {
@@ -35,6 +35,10 @@ func (v *vsize) smaller() *vsize {
 		nw := v.w * nh / v.h
 		if nw&1 != 0 {
 			continue
+		}
+		if nw <= 145 || nh <= 145 {
+			// too small
+			return nil
 		}
 		return &vsize{w: nw, h: nh}
 	}
