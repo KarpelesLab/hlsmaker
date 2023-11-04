@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/KarpelesLab/ffprobe"
+)
 
 const (
 	AudioStream byte = 'a'
@@ -9,14 +13,14 @@ const (
 )
 
 type hlsStream struct {
-	id  int            // stream number
-	lid int            // stream number per type
-	typ byte           // 'v', 'a' or 's' depending if video/audio/subtitle stream
-	src *ffprobeStream // source stream
+	id  int             // stream number
+	lid int             // stream number per type
+	typ byte            // 'v', 'a' or 's' depending if video/audio/subtitle stream
+	src *ffprobe.Stream // source stream
 }
 
 // newStream return a new stream with the correct id set
-func (hls *hlsBuilder) newStream(src *ffprobeStream) *hlsStream {
+func (hls *hlsBuilder) newStream(src *ffprobe.Stream) *hlsStream {
 	s := &hlsStream{
 		id:  len(hls.streams),
 		typ: src.CodecType[0],

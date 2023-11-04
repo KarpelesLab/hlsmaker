@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/KarpelesLab/ffprobe"
 	"github.com/KarpelesLab/runutil"
 )
 
@@ -32,9 +33,9 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		return fmt.Errorf("ffprobe failed: %w", err)
 	}
 
-	video := hls.info.video()
-	audios := hls.info.streams("audio")
-	subtitles := hls.info.streams("subtitle")
+	video := hls.info.Video()
+	audios := hls.info.GetStreams("audio")
+	subtitles := hls.info.GetStreams("subtitle")
 	if video == nil {
 		return fmt.Errorf("video track missing")
 	}
@@ -48,7 +49,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 			log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
 		}
 	}
-	var usableSubs []*ffprobeStream
+	var usableSubs []*ffprobe.Stream
 	for _, subtitle := range subtitles {
 		switch subtitle.CodecName {
 		case "dvd_subtitle", "subrip", "hdmv_pgs_subtitle":
@@ -233,11 +234,11 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	}
 
 	// fetch StartPTS for init_0.mp4 or stream_0_0.ts
-	s0, err := ffprobeFile(filepath.Join(hls.dir, "init_0.mp4"))
+	s0, err := ffprobe.Probe(filepath.Join(hls.dir, "init_0.mp4"))
 	if err != nil {
 		return err
 	}
-	startTime := s0.video().StartTime
+	startTime := s0.Video().StartTime
 
 	// extract subtitles one by one
 	for n, subtitle := range subtitles {

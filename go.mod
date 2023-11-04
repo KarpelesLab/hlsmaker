@@ -1,5 +1,8 @@
 module github.com/KarpelesLab/hlsmaker
 
-go 1.19
+go 1.21.3
 
-require github.com/KarpelesLab/runutil v0.2.2
+require (
+	github.com/KarpelesLab/ffprobe v0.0.3
+	github.com/KarpelesLab/runutil v0.2.2
+)

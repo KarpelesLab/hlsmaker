@@ -1,2 +1,6 @@
+github.com/KarpelesLab/ffprobe v0.0.1 h1:bg77SYpjy5KdLMzJBW00awQK0bVCgk2h3noUwA1pTRw=
+github.com/KarpelesLab/ffprobe v0.0.1/go.mod h1:IhTrGE8+fU3nATuNQY0Jjb4K/fhzGWPigrJYp7nVPFI=
+github.com/KarpelesLab/ffprobe v0.0.3 h1:rpzJxkpEIFal7Cf4f0Gzt4TlleZcOoRc/DH5iQEB8h4=
+github.com/KarpelesLab/ffprobe v0.0.3/go.mod h1:IhTrGE8+fU3nATuNQY0Jjb4K/fhzGWPigrJYp7nVPFI=
 github.com/KarpelesLab/runutil v0.2.2 h1:HYYuB/ANDbLZGJD7MapCe+gs2nLnQK4hSyQ/w8XQ0HA=
 github.com/KarpelesLab/runutil v0.2.2/go.mod h1:Pn6ctZ1Ks10H6JpH+IXLxFi3B+s3bJ2aMtjOsYEIEeA=

@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/KarpelesLab/ffprobe"
 )
 
 // special hls format
@@ -37,7 +39,7 @@ type fileInfo struct {
 
 type hlsBuilder struct {
 	f       *os.File
-	info    *ffprobeInfo // source file info
+	info    *ffprobe.File // source file info
 	dir     string
 	files   map[string]*fileInfo
 	streams []*hlsStream
