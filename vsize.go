@@ -16,6 +16,11 @@ func (v *vsize) Scale() string {
 	return fmt.Sprintf("scale=w=%d:h=%d", v.w, v.h)
 }
 
+// isOver returns true if width or height is over the provided value
+func (v *vsize) isOver(n int) bool {
+	return v.w > n || v.h > n
+}
+
 func (v *vsize) smaller() *vsize {
 	if v.w < v.h {
 		// reverse it, make it smaller, reverse it again

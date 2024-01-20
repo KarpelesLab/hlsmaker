@@ -83,6 +83,22 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 	return nil
 }
 
+func (hls *hlsBuilder) testVideoCodec(size *vsize, codec string) error {
+	// some codecs such as h264_nvenc may not support some encoding sizes (4k or 8k) or appear available but not actually work
+	// this will attempt to encode a single frame using the provided codec & size and report any error
+	//
+	// some errors we catch this way:
+	// [hevc_nvenc @ 0x55dc5d8542c0] Driver does not support the required nvenc API version. Required: 12.1 Found: 12.0
+	// [h264_nvenc @ 0x560455c88540] No capable devices found
+	// Segmentation fault (core dumped)
+	c := exec.Command(exe("ffmpeg"), "-loglevel", "error", "-f", "lavfi", "-i", "color=black:s="+size.String(), "-vframes", "1", "-an", "-c:v", codec, "-f", "null", "-")
+	c.Dir = hls.dir // set to run in temp dir (we don't generate any file anyway)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+
+	return c.Run()
+}
+
 func (hls *hlsBuilder) encodeVideo() error {
 	// prepare the command line
 	args := []string{"-i", hls.input, "-hide_banner"}
@@ -92,6 +108,26 @@ func (hls *hlsBuilder) encodeVideo() error {
 
 	if !*verboseMode {
 		args = append(args, "-loglevel", "warning")
+	}
+	if !*softwareMode {
+		args = append(args, "-hwaccel", "auto")
+	}
+
+	softwareEncode := *softwareMode
+	allowHevc := true
+
+	if !softwareEncode {
+		if err := hls.testVideoCodec(&vsize{4096, 4096}, "h264_nvenc"); err != nil {
+			log.Printf("[ffmpeg] failed to use h264_nvenc codec, falling back to software encoding (error: %s)", err)
+			softwareEncode = false
+		}
+		allowHevc = !softwareEncode
+		if allowHevc {
+			if err := hls.testVideoCodec(&vsize{8192, 8192}, "hevc_nvenc"); err != nil {
+				log.Printf("[ffmpeg] failed to use hevc_nvenc codec, falling back to software encoding (error: %s)", err)
+				allowHevc = false
+			}
+		}
 	}
 
 	// prepare filter_complex
@@ -134,7 +170,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 		tsid := ts.String()
 		bitrateInt := s.bitrate(rate, 0.1)
 		br := strconv.FormatUint(bitrateInt, 10) // we use 0.1 bit per pixel for now
-		if *softwareMode {
+		if softwareEncode {
 			args = append(args,
 				"-map", "[v"+ns+"]",
 				"-c:"+tsid, "libx264",
@@ -149,9 +185,14 @@ func (hls *hlsBuilder) encodeVideo() error {
 				"-keyint_min", "48",
 			)
 		} else {
+			codec := "h264_nvenc"
+			if s.isOver(1920) && allowHevc {
+				codec = "hevc_nvenc"
+			}
+
 			args = append(args,
 				"-map", fmt.Sprintf("[v%d]", n),
-				"-c:"+tsid, "h264_nvenc",
+				"-c:"+tsid, codec,
 				"-profile:"+tsid, "high",
 				"-pix_fmt:"+tsid, "yuv420p",
 				"-preset:"+tsid, "p5",
