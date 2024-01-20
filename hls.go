@@ -43,6 +43,13 @@ type hlsBuilder struct {
 	dir     string
 	files   map[string]*fileInfo
 	streams []*hlsStream
+
+	// vars used by encoding
+	input     string
+	variants  []*vsize
+	video     *ffprobe.Stream
+	audios    []*ffprobe.Stream
+	subtitles []*ffprobe.Stream
 }
 
 const (

@@ -26,22 +26,23 @@ var (
 	videoFilters = flag.String("filter_complex", "", "add extra video filters such as yadif in ffmpeg format")
 )
 
-func (hls *hlsBuilder) encodeVideo(input string) error {
+func (hls *hlsBuilder) prepareVideo(input string) error {
+	hls.input = input
 	// perform ffprobe
 	err := runutil.RunJson(&hls.info, exe("ffprobe"), "-print_format", "json", "-hide_banner", "-loglevel", "warning", "-show_format", "-show_streams", "-show_chapters", input)
 	if err != nil {
 		return fmt.Errorf("ffprobe failed: %w", err)
 	}
 
-	video := hls.info.Video()
-	audios := hls.info.GetStreams("audio")
-	subtitles := hls.info.GetStreams("subtitle")
-	if video == nil {
+	hls.video = hls.info.Video()
+	hls.audios = hls.info.GetStreams("audio")
+	hls.subtitles = hls.info.GetStreams("subtitle")
+	if hls.video == nil {
 		return fmt.Errorf("video track missing")
 	}
 
-	log.Printf("input: video stream format %s %dx%d", video.CodecName, video.Width, video.Height)
-	for _, audio := range audios {
+	log.Printf("input: video stream format %s %dx%d", hls.video.CodecName, hls.video.Width, hls.video.Height)
+	for _, audio := range hls.audios {
 		lng, ok := audio.Tags["language"]
 		if ok {
 			log.Printf("input: audio format %s %d Hz, language %s", audio.CodecName, audio.SampleRate, lng)
@@ -50,7 +51,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		}
 	}
 	var usableSubs []*ffprobe.Stream
-	for _, subtitle := range subtitles {
+	for _, subtitle := range hls.subtitles {
 		switch subtitle.CodecName {
 		case "dvd_subtitle", "subrip", "hdmv_pgs_subtitle":
 			// format is not usabe
@@ -64,23 +65,30 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 		}
 		log.Printf("input: subtitles format %s language %s", subtitle.CodecName, lng)
 	}
-	subtitles = usableSubs
+	hls.subtitles = usableSubs
 
-	siz := &vsize{w: video.Width, h: video.Height}
+	siz := &vsize{w: hls.video.Width, h: hls.video.Height}
 
 	// generate variant sizes
-	variants := []*vsize{siz}
+	hls.variants = nil
+	hls.variants = append(hls.variants, siz)
 	for siz = siz.smaller(); siz != nil; siz = siz.smaller() {
-		if len(variants) >= *maxStreams {
+		if len(hls.variants) >= *maxStreams {
 			break
 		}
-		variants = append(variants, siz)
+		hls.variants = append(hls.variants, siz)
 	}
 
-	log.Printf("will be generating the following sizes: %v", variants)
+	log.Printf("will be generating the following sizes: %v", hls.variants)
+	return nil
+}
 
+func (hls *hlsBuilder) encodeVideo() error {
 	// prepare the command line
-	args := []string{"-i", input, "-hide_banner"}
+	args := []string{"-i", hls.input, "-hide_banner"}
+
+	// reset stuff
+	hls.streams = nil
 
 	if !*verboseMode {
 		args = append(args, "-loglevel", "warning")
@@ -89,18 +97,18 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	// prepare filter_complex
 	var flt string
 	if videoFilters != nil && *videoFilters != "" {
-		flt = fmt.Sprintf("[v:0]%s,split=%d", *videoFilters, len(variants))
+		flt = fmt.Sprintf("[v:0]%s,split=%d", *videoFilters, len(hls.variants))
 	} else {
-		flt = fmt.Sprintf("[v:0]split=%d", len(variants))
+		flt = fmt.Sprintf("[v:0]split=%d", len(hls.variants))
 	}
-	for n := range variants {
+	for n := range hls.variants {
 		if n == 0 {
 			flt += "[v0]"
 			continue
 		}
 		flt += fmt.Sprintf("[vin%d]", n)
 	}
-	for n, s := range variants {
+	for n, s := range hls.variants {
 		if n == 0 {
 			// n==0 means original size
 			continue
@@ -110,7 +118,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	args = append(args, "-filter_complex", flt)
 
 	// map filters
-	rate := video.FrameRate.Value()
+	rate := hls.video.FrameRate.Value()
 
 	// force good framerate values
 	if rate > 60 {
@@ -120,9 +128,9 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	}
 
 	var varStreamMap []string
-	for n, s := range variants {
+	for n, s := range hls.variants {
 		ns := strconv.Itoa(n)
-		ts := hls.newStream(video)
+		ts := hls.newStream(hls.video)
 		tsid := ts.String()
 		bitrateInt := s.bitrate(rate, 0.1)
 		br := strconv.FormatUint(bitrateInt, 10) // we use 0.1 bit per pixel for now
@@ -155,7 +163,7 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	}
 
 	// audio
-	for n, audio := range audios {
+	for n, audio := range hls.audios {
 		ns := strconv.Itoa(n)
 		ts := hls.newStream(audio)
 		tsid := ts.String()
@@ -220,15 +228,21 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 
-	err = c.Run()
+	err := c.Run()
 	if err != nil {
+		if !*softwareMode {
+			log.Printf("[ffmpeg] encode failed: %s", err)
+			log.Printf("[ffmpeg] Retrying in software mode...")
+			*softwareMode = true
+			return hls.encodeVideo()
+		}
 		// [h264_nvenc @ 0x558dde66e480] OpenEncodeSessionEx failed: out of memory (10): (no details)
 		// this error happens on consumer grade hardware because of nvidia's limit on number of concurrent nvenc limit
 		// this is a software limit, see: https://github.com/keylase/nvidia-patch
 		return fmt.Errorf("failed to run ffmpeg: %w", err)
 	}
 
-	if len(subtitles) == 0 {
+	if len(hls.subtitles) == 0 {
 		// no subtitles, process ends here
 		return nil
 	}
@@ -241,9 +255,9 @@ func (hls *hlsBuilder) encodeVideo(input string) error {
 	startTime := s0.Video().StartTime
 
 	// extract subtitles one by one
-	for n, subtitle := range subtitles {
+	for n, subtitle := range hls.subtitles {
 		// prepare the command line
-		args = []string{"-itsoffset", strconv.FormatFloat(startTime, 'f', -1, 64), "-i", input, "-hide_banner"}
+		args = []string{"-itsoffset", strconv.FormatFloat(startTime, 'f', -1, 64), "-i", hls.input, "-hide_banner"}
 
 		if !*verboseMode {
 			args = append(args, "-loglevel", "warning")

@@ -48,7 +48,14 @@ func main() {
 	}
 	defer hlsb.Close()
 
-	err = hlsb.encodeVideo(inFile) // will generate {hls.dir}/master.m3u8
+	err = hlsb.prepareVideo(inFile)
+	if err != nil {
+		log.Printf("preparing failed: %s", err)
+		os.Exit(1)
+		return
+	}
+
+	err = hlsb.encodeVideo() // will generate {hls.dir}/master.m3u8
 	if err != nil {
 		log.Printf("encoding failed: %s", err)
 		os.Exit(1)
