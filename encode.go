@@ -195,7 +195,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 			args = append(args,
 				"-map", fmt.Sprintf("[v%d]", n),
 				"-c:"+tsid, codec,
-				"-profile:"+tsid, "high",
+				"-profile:"+tsid, "main",
 				"-pix_fmt:"+tsid, "yuv420p",
 				"-preset:"+tsid, "p5",
 				"-b:"+tsid, br,
