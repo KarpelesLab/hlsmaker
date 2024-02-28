@@ -101,7 +101,7 @@ func (hls *hlsBuilder) testVideoCodec(size *vsize, codec string) error {
 
 func (hls *hlsBuilder) encodeVideo() error {
 	// prepare the command line
-	args := []string{"-i", hls.input, "-hide_banner"}
+	args := []string{"-hide_banner"}
 
 	// reset stuff
 	hls.streams = nil
@@ -112,6 +112,8 @@ func (hls *hlsBuilder) encodeVideo() error {
 	if !*softwareMode {
 		args = append(args, "-hwaccel", "auto")
 	}
+
+	args = append(args, "-i", hls.input)
 
 	softwareEncode := *softwareMode
 	allowHevc := true
