@@ -201,6 +201,9 @@ func (hls *hlsBuilder) encodeVideo() error {
 				"-b:"+tsid, br,
 				"-maxrate:"+tsid, br,
 			)
+			if codec == "hevc_nvenc" {
+				args = append(args, "-tag:"+tsid, "hvc1")
+			}
 		}
 		varStreamMap = append(varStreamMap, tsid)
 	}
