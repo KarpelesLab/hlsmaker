@@ -171,64 +171,22 @@ func (hls *hlsBuilder) encodeVideo() error {
 		rate = 10
 	}
 
-	// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -encoders | grep aom
-	codecTags := map[string]string{"hevc_nvenc": "hvc1", "av1_nvenc": "av01"}
-	codecProfile := map[string]string{"h264_nvenc": "main", "hevc_nvenc": "main"}
-
 	var varStreamMap []string
 	for n, s := range hls.variants {
+		codec := H264
+		if s.isOver(1280) {
+			if allowAv1 {
+				codec = AV1
+			} else if allowHevc {
+				codec = HEVC
+			}
+		}
 		ns := strconv.Itoa(n)
 		ts := hls.newStream(hls.video)
 		tsid := ts.String()
-		bitrateInt := s.bitrate(rate, 0.1)
-		br := strconv.FormatUint(bitrateInt, 10) // we use 0.1 bit per pixel for now
-		codec := "libx264"
 
-		if !softwareEncode {
-			codec = "h264_nvenc"
-			// if size is over 720x1280, better use hevc and/or av1
-			if s.isOver(1280) {
-				if allowAv1 {
-					codec = "av1_nvenc"
-				} else if allowHevc {
-					codec = "hevc_nvenc"
-				}
-			}
-		}
-
-		switch codec {
-		case "libx264":
-			args = append(args,
-				"-map", "[v"+ns+"]",
-				"-c:"+tsid, "libx264",
-				"-x264-params", "nal-hrd=cbr:force-cfr=1",
-				"-b:"+tsid, br,
-				"-maxrate:"+tsid, br,
-				"-minrate:"+tsid, br,
-				"-bufsize", strconv.FormatUint(bitrateInt*2, 10),
-				"-preset", "slow",
-				"-g", "48",
-				"-sc_threshold", "0",
-				"-keyint_min", "48",
-			)
-		case "h264_nvenc", "hevc_nvenc", "av1_nvenc":
-			args = append(args,
-				"-map", fmt.Sprintf("[v%d]", n),
-				"-c:"+tsid, codec,
-				"-pix_fmt:"+tsid, "yuv420p",
-				"-preset:"+tsid, "p6", // nvenc: slower (better quality)
-				"-b:"+tsid, br,
-				"-maxrate:"+tsid, br,
-			)
-			if prof, ok := codecProfile[codec]; ok {
-				args = append(args, "-profile:"+tsid, prof)
-			}
-			if tag, ok := codecTags[codec]; ok {
-				args = append(args, "-tag:"+tsid, tag)
-			}
-		default:
-			return fmt.Errorf("unsupported codec %s", codec)
-		}
+		args = append(args, "-map", "[v"+ns+"]")
+		args = append(args, codec.Args(softwareEncode, tsid, rate, s)...)
 
 		varStreamMap = append(varStreamMap, tsid)
 	}
