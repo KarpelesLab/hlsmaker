@@ -195,10 +195,12 @@ func (hls *hlsBuilder) encodeVideo() error {
 		} else {
 			// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=av1_nvenc
 			codec := "h264_nvenc"
+			profile := "main"
 			preset := "p6" // slower (better quality)
 			if s.isOver(1280) {
 				if allowAv1 {
 					codec = "av1_nvenc"
+					profile = ""
 				} else if allowHevc {
 					codec = "hevc_nvenc"
 				}
@@ -207,12 +209,14 @@ func (hls *hlsBuilder) encodeVideo() error {
 			args = append(args,
 				"-map", fmt.Sprintf("[v%d]", n),
 				"-c:"+tsid, codec,
-				"-profile:"+tsid, "main",
 				"-pix_fmt:"+tsid, "yuv420p",
 				"-preset:"+tsid, preset,
 				"-b:"+tsid, br,
 				"-maxrate:"+tsid, br,
 			)
+			if profile != "" {
+				args = append(args, "-profile:"+tsid, profile)
+			}
 			if codec == "hevc_nvenc" {
 				args = append(args, "-tag:"+tsid, "hvc1")
 			}
