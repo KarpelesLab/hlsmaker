@@ -117,6 +117,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 
 	softwareEncode := *softwareMode
 	allowHevc := true
+	allowAv1 := false // no software codec for av1 --enable-librav1e fails because rust
 
 	if !softwareEncode {
 		if err := hls.testVideoCodec(&vsize{4096, 4096}, "h264_nvenc"); err != nil {
@@ -129,6 +130,11 @@ func (hls *hlsBuilder) encodeVideo() error {
 				log.Printf("[ffmpeg] failed to use hevc_nvenc codec, falling back to software encoding (error: %s)", err)
 				allowHevc = false
 			}
+		}
+		if err := hls.testVideoCodec(&vsize{8192, 8192}, "av1_nvenc"); err == nil {
+			allowAv1 = true
+		} else {
+			log.Printf("[ffmpeg] failed to use av1_nvenc codec, will not use av1: %s", err)
 		}
 	}
 
@@ -187,9 +193,15 @@ func (hls *hlsBuilder) encodeVideo() error {
 				"-keyint_min", "48",
 			)
 		} else {
+			// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=av1_nvenc
 			codec := "h264_nvenc"
-			if s.isOver(1280) && allowHevc {
-				codec = "hevc_nvenc"
+			preset := "p6" // slower (better quality)
+			if s.isOver(1280) {
+				if allowAv1 {
+					codec = "av1_nvenc"
+				} else if allowHevc {
+					codec = "hevc_nvenc"
+				}
 			}
 
 			args = append(args,
@@ -197,7 +209,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 				"-c:"+tsid, codec,
 				"-profile:"+tsid, "main",
 				"-pix_fmt:"+tsid, "yuv420p",
-				"-preset:"+tsid, "p5",
+				"-preset:"+tsid, preset,
 				"-b:"+tsid, br,
 				"-maxrate:"+tsid, br,
 			)
