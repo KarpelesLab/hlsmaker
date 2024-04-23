@@ -197,12 +197,15 @@ func (hls *hlsBuilder) encodeVideo() error {
 			codec := "h264_nvenc"
 			profile := "main"
 			preset := "p6" // slower (better quality)
+			tag := ""
 			if s.isOver(1280) {
 				if allowAv1 {
 					codec = "av1_nvenc"
 					profile = ""
+					tag = "av01"
 				} else if allowHevc {
 					codec = "hevc_nvenc"
+					tag = "hvc1"
 				}
 			}
 
@@ -217,8 +220,8 @@ func (hls *hlsBuilder) encodeVideo() error {
 			if profile != "" {
 				args = append(args, "-profile:"+tsid, profile)
 			}
-			if codec == "hevc_nvenc" {
-				args = append(args, "-tag:"+tsid, "hvc1")
+			if tag != "" {
+				args = append(args, "-tag:"+tsid, tag)
 			}
 		}
 		varStreamMap = append(varStreamMap, tsid)
