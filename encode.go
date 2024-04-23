@@ -171,6 +171,10 @@ func (hls *hlsBuilder) encodeVideo() error {
 		rate = 10
 	}
 
+	// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -encoders | grep aom
+	codecTags := map[string]string{"hevc_nvenc": "hvc1", "av1_nvenc": "av01"}
+	codecProfile := map[string]string{"h264_nvenc": "main", "hevc_nvenc": "main"}
+
 	var varStreamMap []string
 	for n, s := range hls.variants {
 		ns := strconv.Itoa(n)
@@ -178,7 +182,22 @@ func (hls *hlsBuilder) encodeVideo() error {
 		tsid := ts.String()
 		bitrateInt := s.bitrate(rate, 0.1)
 		br := strconv.FormatUint(bitrateInt, 10) // we use 0.1 bit per pixel for now
-		if softwareEncode {
+		codec := "libx264"
+
+		if !softwareEncode {
+			codec = "h264_nvenc"
+			// if size is over 720x1280, better use hevc and/or av1
+			if s.isOver(1280) {
+				if allowAv1 {
+					codec = "av1_nvenc"
+				} else if allowHevc {
+					codec = "hevc_nvenc"
+				}
+			}
+		}
+
+		switch codec {
+		case "libx264":
 			args = append(args,
 				"-map", "[v"+ns+"]",
 				"-c:"+tsid, "libx264",
@@ -192,38 +211,25 @@ func (hls *hlsBuilder) encodeVideo() error {
 				"-sc_threshold", "0",
 				"-keyint_min", "48",
 			)
-		} else {
-			// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=av1_nvenc
-			codec := "h264_nvenc"
-			profile := "main"
-			preset := "p6" // slower (better quality)
-			tag := ""
-			if s.isOver(1280) {
-				if allowAv1 {
-					codec = "av1_nvenc"
-					profile = ""
-					tag = "av01"
-				} else if allowHevc {
-					codec = "hevc_nvenc"
-					tag = "hvc1"
-				}
-			}
-
+		case "h264_nvenc", "hevc_nvenc", "av1_nvenc":
 			args = append(args,
 				"-map", fmt.Sprintf("[v%d]", n),
 				"-c:"+tsid, codec,
 				"-pix_fmt:"+tsid, "yuv420p",
-				"-preset:"+tsid, preset,
+				"-preset:"+tsid, "p6", // nvenc: slower (better quality)
 				"-b:"+tsid, br,
 				"-maxrate:"+tsid, br,
 			)
-			if profile != "" {
-				args = append(args, "-profile:"+tsid, profile)
+			if prof, ok := codecProfile[codec]; ok {
+				args = append(args, "-profile:"+tsid, prof)
 			}
-			if tag != "" {
+			if tag, ok := codecTags[codec]; ok {
 				args = append(args, "-tag:"+tsid, tag)
 			}
+		default:
+			return fmt.Errorf("unsupported codec %s", codec)
 		}
+
 		varStreamMap = append(varStreamMap, tsid)
 	}
 
