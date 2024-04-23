@@ -62,3 +62,17 @@ func (v *vsize) bitrate(framerate, bitsPerPixel float64) uint64 {
 	// 1080p@60fps is ~6Mbps
 	return uint64(float64(v.w) * float64(v.h) * framerate * bitsPerPixel)
 }
+
+func (v *vsize) variants() []*hlsVariant {
+	// make a smart variant depending on the size
+	if v.isOver(1280) {
+		return []*hlsVariant{
+			&hlsVariant{size: v, codec: AV1},
+			&hlsVariant{size: v, codec: HEVC},
+		}
+	} else {
+		return []*hlsVariant{
+			&hlsVariant{size: v, codec: H264},
+		}
+	}
+}

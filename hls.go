@@ -37,6 +37,15 @@ type fileInfo struct {
 	ln  int64
 }
 
+type hlsVariant struct {
+	size  *vsize
+	codec Codec
+}
+
+func (v *hlsVariant) String() string {
+	return fmt.Sprintf("%s@%s", v.codec, v.size)
+}
+
 type hlsBuilder struct {
 	f       *os.File
 	info    *ffprobe.File // source file info
@@ -46,7 +55,7 @@ type hlsBuilder struct {
 
 	// vars used by encoding
 	input     string
-	variants  []*vsize
+	variants  []*hlsVariant
 	video     *ffprobe.Stream
 	audios    []*ffprobe.Stream
 	subtitles []*ffprobe.Stream

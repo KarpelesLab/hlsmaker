@@ -71,32 +71,16 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 
 	// generate variant sizes
 	hls.variants = nil
-	hls.variants = append(hls.variants, siz)
+	hls.variants = append(hls.variants, siz.variants()...)
 	for siz = siz.smaller(); siz != nil; siz = siz.smaller() {
 		if len(hls.variants) >= *maxStreams {
 			break
 		}
-		hls.variants = append(hls.variants, siz)
+		hls.variants = append(hls.variants, siz.variants()...)
 	}
 
 	log.Printf("will be generating the following sizes: %v", hls.variants)
 	return nil
-}
-
-func (hls *hlsBuilder) testVideoCodec(size *vsize, codec string) error {
-	// some codecs such as h264_nvenc may not support some encoding sizes (4k or 8k) or appear available but not actually work
-	// this will attempt to encode a single frame using the provided codec & size and report any error
-	//
-	// some errors we catch this way:
-	// [hevc_nvenc @ 0x55dc5d8542c0] Driver does not support the required nvenc API version. Required: 12.1 Found: 12.0
-	// [h264_nvenc @ 0x560455c88540] No capable devices found
-	// Segmentation fault (core dumped)
-	c := exec.Command(exe("ffmpeg"), "-loglevel", "error", "-f", "lavfi", "-i", "color=black:s="+size.String(), "-vframes", "1", "-an", "-c:v", codec, "-f", "null", "-")
-	c.Dir = hls.dir // set to run in temp dir (we don't generate any file anyway)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-
-	return c.Run()
 }
 
 func (hls *hlsBuilder) encodeVideo() error {
@@ -116,27 +100,6 @@ func (hls *hlsBuilder) encodeVideo() error {
 	args = append(args, "-i", hls.input)
 
 	softwareEncode := *softwareMode
-	allowHevc := true
-	allowAv1 := false // no software codec for av1 --enable-librav1e fails because rust
-
-	if !softwareEncode {
-		if err := hls.testVideoCodec(&vsize{4096, 4096}, "h264_nvenc"); err != nil {
-			log.Printf("[ffmpeg] failed to use h264_nvenc codec, falling back to software encoding (error: %s)", err)
-			softwareEncode = false
-		}
-		allowHevc = !softwareEncode
-		if allowHevc {
-			if err := hls.testVideoCodec(&vsize{8192, 8192}, "hevc_nvenc"); err != nil {
-				log.Printf("[ffmpeg] failed to use hevc_nvenc codec, falling back to software encoding (error: %s)", err)
-				allowHevc = false
-			}
-		}
-		if err := hls.testVideoCodec(&vsize{8192, 8192}, "av1_nvenc"); err == nil {
-			allowAv1 = true
-		} else {
-			log.Printf("[ffmpeg] failed to use av1_nvenc codec, will not use av1: %s", err)
-		}
-	}
 
 	// prepare filter_complex
 	var flt string
@@ -157,7 +120,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 			// n==0 means original size
 			continue
 		}
-		flt += fmt.Sprintf(";[vin%d]%s[v%d]", n, s.Scale(), n)
+		flt += fmt.Sprintf(";[vin%d]%s[v%d]", n, s.size.Scale(), n)
 	}
 	args = append(args, "-filter_complex", flt)
 
@@ -172,21 +135,14 @@ func (hls *hlsBuilder) encodeVideo() error {
 	}
 
 	var varStreamMap []string
-	for n, s := range hls.variants {
-		codec := H264
-		if s.isOver(1280) {
-			if allowAv1 {
-				codec = AV1
-			} else if allowHevc {
-				codec = HEVC
-			}
-		}
+	for n, v := range hls.variants {
+		codec := v.codec
 		ns := strconv.Itoa(n)
 		ts := hls.newStream(hls.video)
 		tsid := ts.String()
 
 		args = append(args, "-map", "[v"+ns+"]")
-		args = append(args, codec.Args(softwareEncode, tsid, rate, s)...)
+		args = append(args, codec.Args(softwareEncode, tsid, rate, v.size)...)
 
 		varStreamMap = append(varStreamMap, tsid)
 	}
