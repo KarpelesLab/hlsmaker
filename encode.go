@@ -188,7 +188,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 			)
 		} else {
 			codec := "h264_nvenc"
-			if s.isOver(1080) && allowHevc {
+			if s.isOver(1280) && allowHevc {
 				codec = "hevc_nvenc"
 			}
 
