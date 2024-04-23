@@ -9,6 +9,19 @@ import (
 )
 
 type Codec int
+type CodecArgs []*codecArg
+
+type codecArg struct {
+	K, V string // key, value
+}
+
+func (args CodecArgs) WithTsid(tsid string) []string {
+	res := make([]string, 0, len(args)*2)
+	for _, a := range args {
+		res = append(res, a.K+":"+tsid, a.V)
+	}
+	return res
+}
 
 // /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -encoders
 const (
@@ -65,7 +78,7 @@ func (c Codec) codecPreset(software bool) string {
 	}
 }
 
-func (c Codec) Args(software bool, tsid string, rate float64, s *vsize) []string {
+func (c Codec) Args(software bool, rate float64, s *vsize) CodecArgs {
 	bitrateInt := s.bitrate(rate, 0.1) // TODO make 0.1 depend on cookie
 	br := strconv.FormatUint(bitrateInt, 10)
 
@@ -81,18 +94,18 @@ func (c Codec) Args(software bool, tsid string, rate float64, s *vsize) []string
 		codec := c.nvencName()
 		// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=av1_nvenc
 
-		res := []string{
-			"-c:" + tsid, codec,
-			"-pix_fmt:" + tsid, "yuv420p",
-			"-preset:" + tsid, c.codecPreset(software),
-			"-b:" + tsid, br,
-			"-maxrate:" + tsid, br,
+		res := CodecArgs{
+			&codecArg{"-c", codec},
+			&codecArg{"-pix_fmt", "yuv420p"},
+			&codecArg{"-preset", c.codecPreset(software)},
+			&codecArg{"-b", br},
+			&codecArg{"-maxrate", br},
 		}
 		if prof, ok := codecProfile[codec]; ok {
-			res = append(res, "-profile:"+tsid, prof)
+			res = append(res, &codecArg{"-profile", prof})
 		}
 		if tag, ok := codecTags[codec]; ok {
-			res = append(res, "-tag:"+tsid, tag)
+			res = append(res, &codecArg{"-tag", tag})
 		}
 		return res
 	}
@@ -100,44 +113,44 @@ func (c Codec) Args(software bool, tsid string, rate float64, s *vsize) []string
 	switch c {
 	case H264:
 		// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=libx264
-		res := []string{
-			"-c:" + tsid, "libx264",
-			"-x264-params", "nal-hrd=cbr:force-cfr=1",
-			"-b:" + tsid, br,
-			"-maxrate:" + tsid, br,
-			"-minrate:" + tsid, br,
-			"-bufsize:" + tsid, strconv.FormatUint(bitrateInt*2, 10),
-			"-preset:" + tsid, c.codecPreset(software),
-			"-g:" + tsid, "48",
-			"-sc_threshold:" + tsid, "0",
-			"-keyint_min:" + tsid, "48",
+		res := CodecArgs{
+			&codecArg{"-c", "libx264"},
+			&codecArg{"-x264-params", "nal-hrd=cbr:force-cfr=1"},
+			&codecArg{"-b", br},
+			&codecArg{"-maxrate", br},
+			&codecArg{"-minrate", br},
+			&codecArg{"-bufsize", strconv.FormatUint(bitrateInt*2, 10)},
+			&codecArg{"-preset", c.codecPreset(software)},
+			&codecArg{"-g", "48"},
+			&codecArg{"-sc_threshold", "0"},
+			&codecArg{"-keyint_min", "48"},
 		}
 		return res
 	case HEVC:
 		// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=libx265
-		res := []string{
-			"-c:" + tsid, "libx265",
-			"-b:" + tsid, br,
-			"-maxrate:" + tsid, br,
-			"-minrate:" + tsid, br,
-			"-bufsize:" + tsid, strconv.FormatUint(bitrateInt*2, 10),
-			"-tag:" + tsid, "hvc1",
-			"-preset:" + tsid, c.codecPreset(software),
+		res := CodecArgs{
+			&codecArg{"-c", "libx265"},
+			&codecArg{"-b", br},
+			&codecArg{"-maxrate", br},
+			&codecArg{"-minrate", br},
+			&codecArg{"-bufsize", strconv.FormatUint(bitrateInt*2, 10)},
+			&codecArg{"-tag", "hvc1"},
+			&codecArg{"-preset", c.codecPreset(software)},
 		}
 		return res
 	case AV1:
 		// /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -h encoder=libaom-av1
-		res := []string{
-			"-c:" + tsid, "libaom-av1",
-			"-b:" + tsid, br,
-			"-maxrate:" + tsid, br,
-			"-minrate:" + tsid, br,
-			"-bufsize", strconv.FormatUint(bitrateInt*2, 10),
-			"-preset:" + tsid, c.codecPreset(software),
+		res := CodecArgs{
+			&codecArg{"-c", "libaom-av1"},
+			&codecArg{"-b", br},
+			&codecArg{"-maxrate", br},
+			&codecArg{"-minrate", br},
+			&codecArg{"-bufsize", strconv.FormatUint(bitrateInt*2, 10)},
+			&codecArg{"-preset", c.codecPreset(software)},
 		}
 		return res
 	default:
-		return []string{"error", "unsupported_codec"}
+		return nil
 	}
 }
 

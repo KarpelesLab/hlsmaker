@@ -142,7 +142,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 		tsid := ts.String()
 
 		args = append(args, "-map", "[v"+ns+"]")
-		args = append(args, codec.Args(softwareEncode, tsid, rate, v.size)...)
+		args = append(args, codec.Args(softwareEncode, rate, v.size).WithTsid(tsid)...)
 
 		varStreamMap = append(varStreamMap, tsid)
 	}
