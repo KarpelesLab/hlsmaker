@@ -7,9 +7,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/KarpelesLab/ffprobe"
@@ -66,6 +66,7 @@ const (
 	FileMpegTS
 	FileMP4
 	FileVTT
+	FileM4S
 )
 
 func newHlsBuilder(out string) (*hlsBuilder, error) {
@@ -84,7 +85,42 @@ func newHlsBuilder(out string) (*hlsBuilder, error) {
 	return &hlsBuilder{f: file, files: make(map[string]*fileInfo), dir: d}, nil
 }
 
+func (hls *hlsBuilder) makeHls() error {
+	// invoke shaka-packager
+	// https://shaka-project.github.io/shaka-packager/html/tutorials/hls.html#examples
+	// /pkg/main/media-video.shaka-packager.core/bin/shaka-packager 'in=stream_0.mp4,stream=video,init_segment=0/init.mp4,segment_template=0/$Number$.m4s,playlist_name=0/main.m3u8,iframe_playlist_name=0/iframe.m3u8' --hls_master_playlist_output shaka.m3u8
+	cmd := []string{"/pkg/main/media-video.shaka-packager.core/bin/shaka-packager"}
+
+	// for each in
+	for _, ts := range hls.streams {
+		arg := "in=" + ts.Filename() + ",stream=" + ts.Typename()
+		if ts.typ == SubsStream {
+			// text stream
+			arg += fmt.Sprintf(",segment_template=stream_%d_$Number$.vtt", ts.id)
+			cmd = append(cmd, arg)
+			continue
+		}
+		arg += fmt.Sprintf(",init_segment=stream_%d_init.mp4,segment_template=stream_%d_$Number$.m4s", ts.id, ts.id)
+		cmd = append(cmd, arg)
+	}
+
+	cmd = append(cmd, "--hls_master_playlist_output", "master.m3u8")
+
+	log.Printf("About to run: %v", cmd)
+
+	c := exec.Command(cmd[0], cmd[1:]...)
+	c.Dir = hls.dir // set to run in temp dir
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+
+	return c.Run()
+}
+
 func (hls *hlsBuilder) build() error {
+	if err := hls.makeHls(); err != nil {
+		return fmt.Errorf("while making hls: %w", err)
+	}
+
 	master, err := m3u8Parse(filepath.Join(hls.dir, "master.m3u8"))
 	if err != nil {
 		return err
@@ -101,14 +137,11 @@ func (hls *hlsBuilder) build() error {
 		playlists = append(playlists, pl)
 		for _, h := range pl.headers {
 			// check for #EXT-X-MAP:URI="init_0.mp4" header
-			if strings.HasPrefix(h, "#EXT-X-MAP:URI=") {
-				// extract filename
-				fn := strings.TrimPrefix(h, "#EXT-X-MAP:URI=")
-				fn = strings.Trim(fn, "\"") // trim quotes
-				uniqueFiles[fn] = 0
+			if h.key == "#EXT-X-MAP" {
+				uniqueFiles[h.get("URI")] = 0
 			}
 		}
-		f.filename = fmt.Sprintf("%d.m3u8", n)
+		f.setFilename(fmt.Sprintf("%d.m3u8", n))
 		for _, sub := range pl.files {
 			uniqueFiles[sub.filename] = 0
 		}
@@ -123,12 +156,11 @@ func (hls *hlsBuilder) build() error {
 	cnt := len(master.files) // 4
 
 	for _, pl := range playlists {
-		for hn, h := range pl.headers {
+		for _, h := range pl.headers {
 			// check for #EXT-X-MAP:URI="init_0.mp4" header
-			if strings.HasPrefix(h, "#EXT-X-MAP:URI=") {
+			if h.key == "#EXT-X-MAP" {
 				// extract filename
-				fn := strings.TrimPrefix(h, "#EXT-X-MAP:URI=")
-				fn = strings.Trim(fn, "\"") // trim quotes
+				fn := h.get("URI")
 				n := uniqueFiles[fn]
 				pos, ln, err := hls.getFile(fn)
 				if err != nil {
@@ -144,7 +176,7 @@ func (hls *hlsBuilder) build() error {
 				}
 				// overwrite header
 				fn = fmt.Sprintf("%d%s", n, path.Ext(fn))
-				pl.headers[hn] = fmt.Sprintf("#EXT-X-MAP:URI=\"%s\"", fn)
+				h.set("URI", fmt.Sprintf("\"%s\"", fn))
 			}
 		}
 		for _, f := range pl.files {
@@ -183,12 +215,6 @@ func (hls *hlsBuilder) build() error {
 		// flags == 0
 		hls.writeInt32(32+(16*n)+12, uint32(ln))
 		pos += int64(ln)
-	}
-
-	// fix master
-	err = hls.fixMaster(master)
-	if err != nil {
-		return fmt.Errorf("failed to fix master: %w", err)
 	}
 
 	// write master at the end
@@ -274,6 +300,8 @@ func hlsFlags(f *m3u8file) uint32 {
 		return FileMP4
 	case ".vtt":
 		return FileVTT
+	case ".m4s":
+		return FileM4S
 	default:
 		panic(fmt.Sprintf("invalid filename %s", f.filename))
 	}
@@ -290,6 +318,8 @@ func hlsFlagsName(fn string) uint32 {
 		return FileMP4
 	case ".vtt":
 		return FileVTT
+	case ".m4s":
+		return FileM4S
 	default:
 		panic(fmt.Sprintf("invalid filename %s", fn))
 

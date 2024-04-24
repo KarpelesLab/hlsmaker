@@ -3,25 +3,29 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 )
 
 type m3u8 struct {
-	headers []string
+	headers []*m3u8spec
 	files   []*m3u8file
 	footer  []string
 }
 
 type m3u8file struct {
-	headers  []string
-	filename string
+	headers    []*m3u8spec
+	standalone bool
+	filename   string
+}
+
+type m3u8spec struct {
+	key  string   // EXT-X-MEDIA
+	vars []string // TYPE=AUDIO, URI="...", etc
 }
 
 func m3u8Parse(fn string) (*m3u8, error) {
@@ -56,6 +60,7 @@ func (m *m3u8) parse(in io.Reader) error {
 			// remove empty lines
 			continue
 		}
+		spec := m3u8specParse(ln)
 
 		if strings.HasPrefix(ln, "#EXT-X-STREAM-INF:") || strings.HasPrefix(ln, "#EXTINF:") {
 			// we're now in a file
@@ -63,8 +68,17 @@ func (m *m3u8) parse(in io.Reader) error {
 				return fmt.Errorf("unexpected %s", ln)
 			}
 			f = &m3u8file{
-				headers: []string{ln},
+				headers: []*m3u8spec{spec},
 			}
+			continue
+		}
+		if strings.HasPrefix(ln, "#EXT-X-MEDIA:") {
+			// #EXT-X-MEDIA:TYPE=AUDIO,URI="stream_2.m3u8",GROUP-ID="default-audio-group",LANGUAGE="ja",NAME="stream_2",DEFAULT=NO,AUTOSELECT=YES,CHANNELS="2"
+			f := &m3u8file{
+				headers:  []*m3u8spec{spec},
+				filename: spec.get("URI"),
+			}
+			m.files = append(m.files, f)
 			continue
 		}
 		if ln == "#EXT-X-ENDLIST" {
@@ -77,6 +91,7 @@ func (m *m3u8) parse(in io.Reader) error {
 				return fmt.Errorf("unexpected %s", ln)
 			}
 			f.filename = ln
+			f.standalone = true
 			m.files = append(m.files, f)
 			f = nil
 			continue
@@ -85,9 +100,9 @@ func (m *m3u8) parse(in io.Reader) error {
 			if len(m.files) != 0 {
 				return fmt.Errorf("unexpected %s", ln)
 			}
-			m.headers = append(m.headers, ln)
+			m.headers = append(m.headers, spec)
 		} else {
-			f.headers = append(f.headers, ln)
+			f.headers = append(f.headers, spec)
 		}
 	}
 }
@@ -113,7 +128,7 @@ func (m *m3u8) WriteTo(w io.Writer) (n int64, err error) {
 	var n2 int
 	var n3 int64
 	for _, h := range m.headers {
-		n2, err = w.Write([]byte(h + "\n"))
+		n2, err = w.Write([]byte(h.String() + "\n"))
 		n += int64(n2)
 		if err != nil {
 			return
@@ -139,34 +154,94 @@ func (m *m3u8) WriteTo(w io.Writer) (n int64, err error) {
 func (f *m3u8file) WriteTo(w io.Writer) (n int64, err error) {
 	var n2 int
 	for _, h := range f.headers {
-		n2, err = w.Write([]byte(h + "\n"))
+		n2, err = w.Write([]byte(h.String() + "\n"))
 		n += int64(n2)
 		if err != nil {
 			return
 		}
 	}
-	n2, err = w.Write([]byte(f.filename + "\n"))
-	n += int64(n2)
+	if f.standalone {
+		n2, err = w.Write([]byte(f.filename + "\n"))
+		n += int64(n2)
+	}
 	return
 }
 
-func (f *m3u8file) offsetFile(offt int64) error {
-	// #EXT-X-BYTERANGE:2794808@101316020
-	for n, h := range f.headers {
-		if strings.HasPrefix(h, "#EXT-X-BYTERANGE:") {
-			// length@position
-			// we only want to modify the position
-			atpos := strings.IndexByte(h, '@')
-			if atpos == -1 {
-				return errors.New("malformed #EXT-X-BYTERANGE:")
+func (f *m3u8file) setFilename(fn string) {
+	f.filename = fn
+	if !f.standalone {
+		// header 0 ?
+		f.headers[0].set("URI", "\""+fn+"\"")
+	}
+}
+
+func m3u8specParse(f string) *m3u8spec {
+	// #AAA:X=A,Y=B,Z=C
+
+	pos := strings.IndexByte(f, ':')
+	if pos == -1 {
+		return &m3u8spec{key: f}
+	}
+
+	res := &m3u8spec{key: f[:pos]}
+	f = f[pos+1:]
+
+	// TODO handle quotes "..."
+
+	for {
+		pos = strings.IndexByte(f, ',')
+		if pos == -1 {
+			// last
+			if f != "" {
+				res.vars = append(res.vars, f)
 			}
-			curpos, err := strconv.ParseInt(h[atpos+1:], 10, 64)
-			if err != nil {
-				return err
+			break
+		}
+		res.vars = append(res.vars, f[:pos])
+		f = f[pos+1:]
+	}
+
+	return res
+}
+
+func (spec *m3u8spec) get(k string) string {
+	pfx := k + "="
+	for _, s := range spec.vars {
+		if strings.HasPrefix(s, pfx) {
+			res := s[len(pfx):]
+			if res[0] == '"' {
+				res = strings.Trim(res, "\"")
 			}
-			f.headers[n] = h[:atpos+1] + strconv.FormatInt(curpos+offt, 10)
-			return nil
+			return res
 		}
 	}
-	return fs.ErrNotExist
+	return ""
+}
+
+func (spec *m3u8spec) set(k, v string) {
+	pfx := k + "="
+	for n, s := range spec.vars {
+		if strings.HasPrefix(s, pfx) {
+			spec.vars[n] = pfx + v
+			return
+		}
+	}
+}
+
+func (spec *m3u8spec) String() string {
+	buf := &bytes.Buffer{}
+	buf.WriteString(spec.key)
+	if len(spec.vars) == 0 {
+		return buf.String()
+	}
+
+	buf.WriteByte(':')
+
+	for n, v := range spec.vars {
+		if n != 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(v)
+	}
+	return buf.String()
 }

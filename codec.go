@@ -25,7 +25,8 @@ func (args CodecArgs) WithTsid(tsid string) []string {
 
 // /pkg/main/media-video.ffmpeg.core/bin/ffmpeg -encoders
 const (
-	H264 Codec = iota
+	Copy Codec = iota
+	H264
 	HEVC
 	AV1
 )
@@ -38,6 +39,8 @@ var (
 
 func (c Codec) nvencName() string {
 	switch c {
+	case Copy:
+		return "copy"
 	case H264:
 		return "h264_nvenc"
 	case HEVC:
@@ -81,6 +84,10 @@ func (c Codec) codecPreset(software bool) string {
 func (c Codec) Args(software bool, rate float64, s *vsize) CodecArgs {
 	bitrateInt := s.bitrate(rate, 0.1) // TODO make 0.1 depend on cookie
 	br := strconv.FormatUint(bitrateInt, 10)
+
+	if c == Copy {
+		return CodecArgs{&codecArg{"-c", "copy"}}
+	}
 
 	if !software {
 		// ensure this codec can be used

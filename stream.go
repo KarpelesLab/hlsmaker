@@ -39,3 +39,25 @@ func (hls *hlsBuilder) newStream(src *ffprobe.Stream) *hlsStream {
 func (s *hlsStream) String() string {
 	return fmt.Sprintf("%c:%d", s.typ, s.lid)
 }
+
+func (s *hlsStream) Filename() string {
+	switch s.typ {
+	case SubsStream:
+		return fmt.Sprintf("stream_%d.vtt", s.id)
+	default:
+		return fmt.Sprintf("stream_%d.mp4", s.id)
+	}
+}
+
+func (s *hlsStream) Typename() string {
+	switch s.typ {
+	case AudioStream:
+		return "audio"
+	case VideoStream:
+		return "video"
+	case SubsStream:
+		return "text"
+	default:
+		return ""
+	}
+}
