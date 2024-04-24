@@ -88,12 +88,12 @@ func newHlsBuilder(out string) (*hlsBuilder, error) {
 func (hls *hlsBuilder) makeHls() error {
 	// invoke shaka-packager
 	// https://shaka-project.github.io/shaka-packager/html/tutorials/hls.html#examples
-	// /pkg/main/media-video.shaka-packager.core/bin/shaka-packager 'in=stream_0.mp4,stream=video,init_segment=0/init.mp4,segment_template=0/$Number$.m4s,playlist_name=0/main.m3u8,iframe_playlist_name=0/iframe.m3u8' --hls_master_playlist_output shaka.m3u8
 	cmd := []string{"/pkg/main/media-video.shaka-packager.core/bin/shaka-packager"}
 
 	// for each in
 	for _, ts := range hls.streams {
 		arg := "in=" + ts.Filename() + ",stream=" + ts.Typename()
+
 		if ts.typ == SubsStream {
 			// text stream
 			arg += fmt.Sprintf(",segment_template=stream_%d_$Number$.vtt", ts.id)
@@ -101,6 +101,10 @@ func (hls *hlsBuilder) makeHls() error {
 			continue
 		}
 		arg += fmt.Sprintf(",init_segment=stream_%d_init.mp4,segment_template=stream_%d_$Number$.m4s", ts.id, ts.id)
+		if ts.typ == VideoStream {
+			arg += fmt.Sprintf(",iframe_playlist_name=stream_%d_iframe.m3u8", ts.id)
+		}
+
 		cmd = append(cmd, arg)
 	}
 

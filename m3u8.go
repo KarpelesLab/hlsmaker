@@ -62,7 +62,7 @@ func (m *m3u8) parse(in io.Reader) error {
 		}
 		spec := m3u8specParse(ln)
 
-		if strings.HasPrefix(ln, "#EXT-X-STREAM-INF:") || strings.HasPrefix(ln, "#EXTINF:") {
+		if spec.key == "#EXT-X-STREAM-INF" || spec.key == "#EXTINF" {
 			// we're now in a file
 			if f != nil {
 				return fmt.Errorf("unexpected %s", ln)
@@ -72,8 +72,9 @@ func (m *m3u8) parse(in io.Reader) error {
 			}
 			continue
 		}
-		if strings.HasPrefix(ln, "#EXT-X-MEDIA:") {
+		if spec.key == "#EXT-X-MEDIA" || spec.key == "#EXT-X-I-FRAME-STREAM-INF" {
 			// #EXT-X-MEDIA:TYPE=AUDIO,URI="stream_2.m3u8",GROUP-ID="default-audio-group",LANGUAGE="ja",NAME="stream_2",DEFAULT=NO,AUTOSELECT=YES,CHANNELS="2"
+			// #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=321394,AVERAGE-BANDWIDTH=115404,CODECS="avc1.42c028",RESOLUTION=1920x1080,CLOSED-CAPTIONS=NONE,URI="stream_0_iframe.m3u8"
 			f := &m3u8file{
 				headers:  []*m3u8spec{spec},
 				filename: spec.get("URI"),
