@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -39,6 +40,31 @@ func m3u8Parse(fn string) (*m3u8, error) {
 
 	res := &m3u8{}
 	return res, res.parse(f)
+}
+
+func m3u8BuildVTT(fn string, duration float64) *m3u8 {
+	f := &m3u8{
+		headers: []*m3u8spec{
+			&m3u8spec{key: "#EXTM3U"},
+			&m3u8spec{key: "#EXT-X-VERSION", vars: []string{"6"}},
+			&m3u8spec{key: "#EXT-X-ALLOW-CACHE", vars: []string{"YES"}},
+			&m3u8spec{key: "#EXT-X-TARGETDURATION", vars: []string{strconv.FormatUint(uint64(duration), 10)}},
+			&m3u8spec{key: "#EXT-X-MEDIA-SEQUENCE", vars: []string{"0"}},
+			&m3u8spec{key: "#EXT-X-PLAYLIST-TYPE", vars: []string{"VOD"}},
+		},
+		files: []*m3u8file{
+			&m3u8file{
+				headers: []*m3u8spec{
+					&m3u8spec{key: "#EXTINF", vars: []string{strconv.FormatFloat(duration, 'f', 6, 64), ""}},
+				},
+				standalone: true,
+				filename:   fn,
+			},
+		},
+		footer: []string{"#EXT-X-ENDLIST"},
+	}
+
+	return f
 }
 
 func (m *m3u8) parse(in io.Reader) error {
@@ -106,6 +132,17 @@ func (m *m3u8) parse(in io.Reader) error {
 			f.headers = append(f.headers, spec)
 		}
 	}
+}
+
+func (m *m3u8) SaveAs(fn string) error {
+	f, err := os.Create(fn)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = m.WriteTo(f)
+	return err
 }
 
 func (m *m3u8) Bytes() []byte {

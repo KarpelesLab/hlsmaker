@@ -92,14 +92,12 @@ func (hls *hlsBuilder) makeHls() error {
 
 	// for each in
 	for _, ts := range hls.streams {
-		arg := "in=" + ts.Filename() + ",stream=" + ts.Typename()
-
 		if ts.typ == SubsStream {
-			// text stream
-			arg += fmt.Sprintf(",segment_template=stream_%d_$Number$.vtt", ts.id)
-			cmd = append(cmd, arg)
+			// shaka has trouble reading some of ffmpeg subtitles files, and really we don't care about splitting these most of the time
 			continue
 		}
+		arg := "in=" + ts.Filename() + ",stream=" + ts.Typename()
+
 		arg += fmt.Sprintf(",init_segment=stream_%d_init.mp4,segment_template=stream_%d_$Number$.m4s", ts.id, ts.id)
 		if ts.typ == VideoStream {
 			arg += fmt.Sprintf(",iframe_playlist_name=stream_%d_iframe.m3u8", ts.id)
@@ -128,6 +126,49 @@ func (hls *hlsBuilder) build() error {
 	master, err := m3u8Parse(filepath.Join(hls.dir, "master.m3u8"))
 	if err != nil {
 		return err
+	}
+
+	// add subs if any NOW
+	subcnt := 0
+	for _, ts := range hls.streams {
+		if ts.typ != SubsStream {
+			continue
+		}
+
+		playlist := m3u8BuildVTT(ts.Filename(), hls.info.Format.Duration)
+		pfn := fmt.Sprintf("stream_%d_sub.m3u8", ts.id)
+		err = playlist.SaveAs(filepath.Join(hls.dir, pfn))
+		if err != nil {
+			return fmt.Errorf("while writing subs playlist: %w", err)
+		}
+
+		opts := []string{"TYPE=SUBTITLES", `GROUP-ID="subs"`, "DEFAULT=NO", "AUTOSELECT=YES", "FORCED=NO", "URI=\"" + pfn + "\""}
+		if lng, ok := ts.src.Tags["language"]; ok {
+			if len(lng) > 2 {
+				// TODO better map language
+				lng = lng[:2]
+			}
+			opts = append(opts, "LANGUAGE=\""+lng+"\"")
+		}
+
+		// append to master
+		// #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English subs",LANGUAGE="en",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="4.m3u8"
+		master.files = append(master.files, &m3u8file{
+			filename: pfn,
+			headers: []*m3u8spec{
+				&m3u8spec{key: "#EXT-X-MEDIA", vars: opts},
+			},
+		})
+		subcnt += 1
+	}
+	if subcnt > 0 {
+		// add subs to videos
+		for _, f := range master.files {
+			// only video streams are standalone
+			if f.standalone {
+				f.headers[0].set("SUBTITLES", `"subs"`)
+			}
+		}
 	}
 
 	var playlists []*m3u8
