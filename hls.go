@@ -96,7 +96,7 @@ func (hls *hlsBuilder) makeHls() error {
 
 		if ts.typ == SubsStream {
 			// text stream
-			arg += fmt.Sprintf(",output=stream_%d.vtt", ts.id)
+			arg += fmt.Sprintf(",segment_template=stream_%d_$Number$.vtt", ts.id)
 			cmd = append(cmd, arg)
 			continue
 		}
