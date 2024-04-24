@@ -108,7 +108,7 @@ func (hls *hlsBuilder) makeHls() error {
 		cmd = append(cmd, arg)
 	}
 
-	cmd = append(cmd, "--hls_master_playlist_output", "master.m3u8")
+	cmd = append(cmd, "--hls_playlist_type", "VOD", "--hls_master_playlist_output", "master.m3u8")
 
 	log.Printf("About to run: %v", cmd)
 
