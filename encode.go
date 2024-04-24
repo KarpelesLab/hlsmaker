@@ -154,7 +154,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 		args = append(args,
 			"-map", "a:"+ns,
 			"-c", "aac",
-			"-b", "96k",
+			"-b:a", "96k",
 			"-ac", "2",
 		)
 		args = append(args, ts.Filename())

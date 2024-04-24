@@ -18,7 +18,7 @@ type codecArg struct {
 func (args CodecArgs) Expand() []string {
 	res := make([]string, 0, len(args)*2)
 	for _, a := range args {
-		res = append(res, a.K, a.V)
+		res = append(res, a.K+":v", a.V)
 	}
 	return res
 }
