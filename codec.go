@@ -15,6 +15,14 @@ type codecArg struct {
 	K, V string // key, value
 }
 
+func (args CodecArgs) Expand() []string {
+	res := make([]string, 0, len(args)*2)
+	for _, a := range args {
+		res = append(res, a.K, a.V)
+	}
+	return res
+}
+
 func (args CodecArgs) WithTsid(tsid string) []string {
 	res := make([]string, 0, len(args)*2)
 	for _, a := range args {

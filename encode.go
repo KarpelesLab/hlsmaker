@@ -140,10 +140,9 @@ func (hls *hlsBuilder) encodeVideo() error {
 		codec := v.codec
 		ns := strconv.Itoa(n)
 		ts := hls.newStream(hls.video)
-		tsid := ts.String()
 
 		args = append(args, "-map", "[v"+ns+"]")
-		args = append(args, codec.Args(softwareEncode, rate, v.size).WithTsid(tsid)...)
+		args = append(args, codec.Args(softwareEncode, rate, v.size).Expand()...)
 
 		args = append(args, ts.Filename())
 	}
@@ -152,12 +151,11 @@ func (hls *hlsBuilder) encodeVideo() error {
 	for n, audio := range hls.audios {
 		ns := strconv.Itoa(n)
 		ts := hls.newStream(audio)
-		tsid := ts.String()
 		args = append(args,
 			"-map", "a:"+ns,
-			"-c:"+tsid, "aac",
-			"-b:"+tsid, "96k",
-			"-ac:"+tsid, "2",
+			"-c", "aac",
+			"-b", "96k",
+			"-ac", "2",
 		)
 		args = append(args, ts.Filename())
 	}
