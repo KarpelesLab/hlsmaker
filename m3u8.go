@@ -264,6 +264,8 @@ func (spec *m3u8spec) set(k, v string) {
 			return
 		}
 	}
+	// append
+	spec.vars = append(spec.vars, pfx+v)
 }
 
 func (spec *m3u8spec) String() string {
