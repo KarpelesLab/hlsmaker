@@ -143,13 +143,19 @@ func (hls *hlsBuilder) build() error {
 		}
 
 		opts := []string{"TYPE=SUBTITLES", `GROUP-ID="subs"`, "DEFAULT=NO", "AUTOSELECT=YES", "FORCED=NO", "URI=\"" + pfn + "\""}
+		title := "subtitles"
 		if lng, ok := ts.src.Tags["language"]; ok {
+			title = lng + " subs"
 			if len(lng) > 2 {
 				// TODO better map language
 				lng = lng[:2]
 			}
 			opts = append(opts, "LANGUAGE=\""+lng+"\"")
 		}
+		if t, ok := ts.src.Tags["title"]; ok {
+			title = t
+		}
+		opts = append(opts, "NAME=\""+title+"\"")
 
 		// append to master
 		// #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English subs",LANGUAGE="en",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="4.m3u8"
