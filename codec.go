@@ -95,9 +95,9 @@ func (c Codec) idealBitsPerPixel() float64 {
 	case H264:
 		return 0.1
 	case HEVC:
-		return 0.06
+		return 0.08
 	case AV1:
-		return 0.05
+		return 0.07
 	default:
 		//???
 		return 0.1
