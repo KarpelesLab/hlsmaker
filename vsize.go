@@ -30,6 +30,7 @@ func (v *vsize) smaller() *vsize {
 	steps := []int{4320, 2160, 1440, 1080, 720, 480, 360, 240} //, 144}
 
 	for _, nh := range steps {
+		// skip if height is more than current
 		if v.h <= nh {
 			continue
 		}
