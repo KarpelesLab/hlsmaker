@@ -89,8 +89,23 @@ func (c Codec) codecPreset(software bool) string {
 	}
 }
 
+// idealBitsPerPixel returns a value for base bitrate, how good is it I don't know really
+func (c Codec) idealBitsPerPixel() float64 {
+	switch c {
+	case H264:
+		return 0.1
+	case HEVC:
+		return 0.06
+	case AV1:
+		return 0.05
+	default:
+		//???
+		return 0.1
+	}
+}
+
 func (c Codec) Args(software bool, rate float64, s *vsize) CodecArgs {
-	bitrateInt := s.bitrate(rate, 0.1) // TODO make 0.1 depend on cookie
+	bitrateInt := s.bitrate(rate, c.idealBitsPerPixel())
 	br := strconv.FormatUint(bitrateInt, 10)
 
 	if c == Copy {
