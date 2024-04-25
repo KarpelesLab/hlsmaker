@@ -39,7 +39,7 @@ func (v *vsize) smaller() *vsize {
 		}
 		nw := v.w * nh / v.h
 		if nw&1 != 0 {
-			continue
+			nw -= 1
 		}
 		if nw <= 145 || nh <= 145 {
 			// too small
