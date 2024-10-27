@@ -112,10 +112,10 @@ func (c Codec) Args(software bool, rate float64, s *vsize) CodecArgs {
 		return CodecArgs{&codecArg{"-c", "copy"}}
 	}
 
-	if !software {
-		// ensure this codec can be used
+	if !software && *softFallback {
+		// fallback to software if this codec cannot be used
 		if err := c.testHardware(s); err != nil {
-			log.Printf("Using software encoding for codec %s as hardware encoding failed: %s", err)
+			log.Printf("Using software encoding for codec %s / size %s as hardware encoding failed: %s", c, s, err)
 			software = true
 		}
 	}

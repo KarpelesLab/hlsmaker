@@ -17,6 +17,7 @@ import (
 var (
 	maxStreams   = flag.Int("max_streams", 16, "set the maximum number of video streams to include")
 	softwareMode = flag.Bool("software", false, "enable software encoding")
+	softFallback = flag.Bool("software_fallback", false, "enable software encoding if hardware fails")
 	singleMode   = flag.Bool("single", false, "do not encode video, copy only")
 	verboseMode  = flag.Bool("verbose", false, "show more info during encoding")
 	videoFilters = flag.String("filter_complex", "", "add extra video filters such as yadif in ffmpeg format")
