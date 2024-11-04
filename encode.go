@@ -171,12 +171,6 @@ func (hls *hlsBuilder) encodeVideo() error {
 
 	err := c.Run()
 	if err != nil {
-		if !*softwareMode {
-			log.Printf("[ffmpeg] encode failed: %s", err)
-			log.Printf("[ffmpeg] Retrying in software mode...")
-			*softwareMode = true
-			return hls.encodeVideo()
-		}
 		// [h264_nvenc @ 0x558dde66e480] OpenEncodeSessionEx failed: out of memory (10): (no details)
 		// this error happens on consumer grade hardware because of nvidia's limit on number of concurrent nvenc limit
 		// this is a software limit, see: https://github.com/keylase/nvidia-patch
