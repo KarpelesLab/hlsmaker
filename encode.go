@@ -182,12 +182,23 @@ func (hls *hlsBuilder) encodeVideo() error {
 		return nil
 	}
 
+	// Check if stream_0.mp4 exists before proceeding with subtitle extraction
+	streamPath := filepath.Join(hls.dir, "stream_0.mp4")
+	if _, err := os.Stat(streamPath); os.IsNotExist(err) {
+		return fmt.Errorf("stream_0.mp4 not found, video encoding may have failed")
+	}
+
 	// fetch StartPTS for first video
 	s0, err := ffprobe.Probe(filepath.Join(hls.dir, "stream_0.mp4"))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to probe stream_0.mp4: %w", err)
 	}
-	startTime := s0.Video().StartTime
+	
+	video := s0.Video()
+	if video == nil {
+		return fmt.Errorf("no video stream found in stream_0.mp4")
+	}
+	startTime := video.StartTime
 
 	// extract subtitles one by one
 	for n, subtitle := range hls.subtitles {
