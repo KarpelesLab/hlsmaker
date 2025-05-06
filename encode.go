@@ -193,7 +193,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 	if err != nil {
 		return fmt.Errorf("failed to probe stream_0.mp4: %w", err)
 	}
-	
+
 	video := s0.Video()
 	if video == nil {
 		return fmt.Errorf("no video stream found in stream_0.mp4")
