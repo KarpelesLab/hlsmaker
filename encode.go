@@ -207,7 +207,7 @@ func (hls *hlsBuilder) encodeVideo() error {
 	startTime := video.StartTime
 
 	// extract subtitles one by one
-	for n, subtitle := range hls.subtitles {
+	for _, subtitle := range hls.subtitles {
 		// prepare the command line
 		args = []string{"-itsoffset", strconv.FormatFloat(startTime, 'f', -1, 64), "-i", hls.input, "-hide_banner"}
 
@@ -215,10 +215,10 @@ func (hls *hlsBuilder) encodeVideo() error {
 			args = append(args, "-loglevel", "warning")
 		}
 
-		ns := strconv.Itoa(n)
+		idx := strconv.Itoa(subtitle.Index)
 		ts := hls.newStream(subtitle)
 		args = append(args,
-			"-map", "s:"+ns,
+			"-map", "0:"+idx,
 			"-c:0", "webvtt",
 			"-f", "webvtt",
 			// output file
