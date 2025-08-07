@@ -38,13 +38,13 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 		return fmt.Errorf("video track missing")
 	}
 
-	log.Printf("input: video stream format %s %dx%d", hls.video.CodecName, hls.video.Width, hls.video.Height)
+	log.Printf("input: Track #%d video stream format %s %dx%d", hls.video.Index, hls.video.CodecName, hls.video.Width, hls.video.Height)
 	for _, audio := range hls.audios {
 		lng, ok := audio.Tags["language"]
 		if ok {
-			log.Printf("input: audio format %s %d Hz, language %s", audio.CodecName, audio.SampleRate, lng)
+			log.Printf("input: Track #%d audio format %s %d Hz, language %s", audio.Index, audio.CodecName, audio.SampleRate, lng)
 		} else {
-			log.Printf("input: audio format %s %d Hz", audio.CodecName, audio.SampleRate)
+			log.Printf("input: Track #%d audio format %s %d Hz", audio.Index, audio.CodecName, audio.SampleRate)
 		}
 	}
 	var usableSubs []*ffprobe.Stream
@@ -60,7 +60,7 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 		if !ok {
 			lng = "und"
 		}
-		log.Printf("input: subtitles format %s language %s", subtitle.CodecName, lng)
+		log.Printf("input: Track #%d subtitles format %s language %s", subtitle.Index, subtitle.CodecName, lng)
 	}
 	hls.subtitles = usableSubs
 
@@ -88,7 +88,7 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 
 func (hls *hlsBuilder) encodeVideo() error {
 	// prepare the command line
-	args := []string{"-hide_banner"}
+	args := []string{"-hide_banner", "-y"}
 
 	// reset stuff
 	hls.streams = nil
