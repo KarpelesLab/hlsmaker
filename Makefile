@@ -24,7 +24,7 @@ endif
 
 # variables that should be set in contrib/config.mak
 ifeq ($(DIST_ARCHS),)
-DIST_ARCHS=linux_amd64 linux_386 linux_arm linux_arm64 linux_ppc64 linux_ppc64le darwin_amd64 darwin_386 freebsd_386 freebsd_amd64 freebsd_arm windows_386 windows_amd64
+DIST_ARCHS=linux_amd64 linux_386 linux_arm linux_arm64 linux_ppc64 linux_ppc64le darwin_amd64 freebsd_386 freebsd_amd64 freebsd_arm windows_386 windows_amd64
 endif
 ifeq ($(PROJECT_NAME),)
 PROJECT_NAME:=$(shell basename `pwd`)
