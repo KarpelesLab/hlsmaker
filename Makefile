@@ -5,7 +5,7 @@ GO_TAG:=$(shell /bin/sh -c 'eval `$(GOROOT)/bin/go tool dist env`; echo "$${GOOS
 GIT_TAG:=$(shell git rev-parse --short HEAD)
 GOPATH:=$(shell $(GOROOT)/bin/go env GOPATH)
 SOURCES:=$(shell find . -name '*.go')
-AWS:=$(shell which 2>/dev/null aws)
+AWS:=$(shell which 2>/dev/null aws) --profile cf
 S3_TARGET=s3://dist-go
 ifeq ($(DATE_TAG),)
 DATE_TAG:=$(shell TZ=UTC git show -s --format=%cd --date=format-local:%Y%m%d%H%M%S HEAD)
