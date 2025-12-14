@@ -27,22 +27,16 @@ func (v *vsize) smaller() *vsize {
 		return v.reverse().smaller().reverse()
 	}
 
-	steps := []int{4320, 2160, 1440, 1080, 720, 480, 360, 240} //, 144}
+	steps := []int{4320, 2160, 1440, 1080, 720, 480, 360, 240, 160}
 
 	for _, nh := range steps {
 		// skip if height is more than current
 		if v.h <= nh {
 			continue
 		}
-		// resize to 1920x1080
-		if v.w*nh%v.h != 0 {
-			continue
-		}
-		nw := v.w * nh / v.h
-		if nw&1 != 0 {
-			nw -= 1
-		}
-		if nw <= 145 || nh <= 145 {
+		// calculate new width maintaining aspect ratio, round to nearest even number
+		nw := (v.w * nh / v.h) &^ 1 // integer division then clear last bit to make even
+		if nw < 160 || nh < 160 {
 			// too small
 			return nil
 		}
