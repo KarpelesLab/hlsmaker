@@ -74,7 +74,7 @@ dist:
 	@make -s $(patsubst %,dist/$(PROJECT_NAME)_$(GIT_TAG)/upload/$(PROJECT_NAME)_%.bz2,$(DIST_ARCHS))
 ifneq ($(AWS),)
 	@echo "Uploading ..."
-	@aws s3 cp --cache-control 'max-age=31536000' --recursive "dist/$(PROJECT_NAME)_$(GIT_TAG)/upload" "$(S3_TARGET)/$(PROJECT_NAME)/$(PROJECT_NAME)_$(DATE_TAG)_$(GIT_TAG)/"
+	@$(AWS) s3 cp --cache-control 'max-age=31536000' --recursive "dist/$(PROJECT_NAME)_$(GIT_TAG)/upload" "$(S3_TARGET)/$(PROJECT_NAME)/$(PROJECT_NAME)_$(DATE_TAG)_$(GIT_TAG)/"
 	@echo "Configuring dist repository"
 	@echo "$(DIST_ARCHS)" | aws s3 cp --cache-control 'max-age=31536000' --content-type 'text/plain' - "$(S3_TARGET)/$(PROJECT_NAME)/$(PROJECT_NAME)_$(DATE_TAG)_$(GIT_TAG).arch"
 	@echo "$(DATE_TAG) $(GIT_TAG) $(PROJECT_NAME)_$(DATE_TAG)_$(GIT_TAG)" | aws s3 cp --cache-control 'max-age=60' --content-type 'text/plain' - "$(S3_TARGET)/$(PROJECT_NAME)/LATEST"
