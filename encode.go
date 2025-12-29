@@ -32,15 +32,26 @@ func (hls *hlsBuilder) prepareVideo(input string) error {
 	}
 
 	hls.video = hls.info.Video()
-	hls.audios = hls.info.GetStreams("audio")
 	hls.subtitles = hls.info.GetStreams("subtitle")
 	if hls.video == nil {
 		return fmt.Errorf("video track missing")
 	}
 
 	log.Printf("input: Track #%d video stream format %s %dx%d", hls.video.Index, hls.video.CodecName, hls.video.Width, hls.video.Height)
-	for _, audio := range hls.audios {
+
+	// Filter audio streams to only include those with supported codecs
+	for _, audio := range hls.info.GetStreams("audio") {
 		lng, ok := audio.Tags["language"]
+		if audio.CodecName == "" || audio.CodecName == "none" {
+			// Skip audio streams with unsupported/unknown codecs
+			if ok {
+				log.Printf("input: Track #%d audio format %s %d Hz, language %s (skipped: unsupported codec)", audio.Index, audio.CodecName, audio.SampleRate, lng)
+			} else {
+				log.Printf("input: Track #%d audio format %s %d Hz (skipped: unsupported codec)", audio.Index, audio.CodecName, audio.SampleRate)
+			}
+			continue
+		}
+		hls.audios = append(hls.audios, audio)
 		if ok {
 			log.Printf("input: Track #%d audio format %s %d Hz, language %s", audio.Index, audio.CodecName, audio.SampleRate, lng)
 		} else {
